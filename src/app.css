@@ -23,12 +23,19 @@ body, .app-root {
   height: 100vh;
   width: 100vw;
   box-sizing: border-box;
-  /* To enable background image, add your image to public/backgrounds/rudra-ai-bg.png and uncomment below: */
-  /* background-image: url('/backgrounds/rudra-ai-bg.png'), linear-gradient(135deg, #181a20 0%, #23272f 100%);
-  background-size: 40vw, cover;
-  background-repeat: no-repeat;
-  background-position: right bottom, center;
-  animation: bgmove 24s linear infinite alternate; */
+  background: url('/background/Rudra-bg.png') center center / cover no-repeat, linear-gradient(135deg, #181a20 0%, #23272f 100%);
+  /* Subtle overlay for readability */
+  position: relative;
+}
+body::before, .app-root::before {
+  content: "";
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: rgba(24,26,32,0.82);
+  /* Optional: add a blur for extra subtlety */
+  backdrop-filter: blur(2px);
 }
 @keyframes bgmove {
   0% { background-position: right bottom, center; }

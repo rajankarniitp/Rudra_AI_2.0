@@ -104,8 +104,8 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
             }}
             aria-label="Select AI Provider"
           >
-            <option value="openai">OpenAI</option>
-            <option value="gemini">Gemini</option>
+            <option value="openai">Advanced</option>
+            <option value="gemini">Best</option>
           </select>
         </div>
         <div className="sidebar-actions" style={{ marginTop: 0, marginBottom: 8 }}>
