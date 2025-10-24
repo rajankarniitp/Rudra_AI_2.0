@@ -1,0 +1,21 @@
+# Node/Electron
+node_modules/
+dist/
+out/
+.cache/
+*.log
+
+# Env
+.env
+.env.local
+
+# Build artifacts
+*.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
