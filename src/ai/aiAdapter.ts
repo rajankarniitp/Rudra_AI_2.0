@@ -32,9 +32,10 @@ export async function callAI(payload: CallAIPayload): Promise<AIResponse> {
     console.log("Renderer: Using OPEN_AI_API_KEY:", openaiKey ? "[set]" : "[not set]");
     return callOpenAI(payload, openaiKey);
   }
+  console.log("Renderer: AI_API_KEY:", aiKey ? "[set]" : "[not set]");
+  console.log("Renderer: OPEN_AI_API_KEY:", openaiKey ? "[set]" : "[not set]");
   if (!aiKey) {
-    console.log("Renderer: AI_API_KEY not set");
-    throw new Error("AI API key not set.");
+    throw new Error("AI API key not set. Please check your .env file and restart the app.");
   }
 
   switch (provider) {

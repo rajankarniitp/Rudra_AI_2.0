@@ -23,7 +23,7 @@ body, .app-root {
   height: 100vh;
   width: 100vw;
   box-sizing: border-box;
-  background: url('/background/Rudra-bg.png') center center / cover no-repeat, linear-gradient(135deg, #181a20 0%, #23272f 100%);
+  background: linear-gradient(135deg, #181a20 0%, #23272f 100%);
   /* Subtle overlay for readability */
   position: relative;
 }
@@ -33,9 +33,9 @@ body::before, .app-root::before {
   top: 0; left: 0; right: 0; bottom: 0;
   z-index: 0;
   pointer-events: none;
-  background: rgba(24,26,32,0.82);
-  /* Optional: add a blur for extra subtlety */
-  backdrop-filter: blur(2px);
+  background: rgba(24,26,32,0.45);
+  /* Removed blur for clarity */
+  /* backdrop-filter: blur(2px); */
 }
 @keyframes bgmove {
   0% { background-position: right bottom, center; }

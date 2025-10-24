@@ -29,10 +29,25 @@ npm install
 
 ### 2. Set your AI API key
 
-Copy `.env.example` to `.env` and add your API key:
+Copy `.env.example` to `.env` and add your API keys:
 
+For **OpenAI** (recommended for most users):
 ```
-AI_API_KEY=your_openai_or_gemini_key
+OPEN_AI_API_KEY=sk-...your OpenAI key...
+AI_API_KEY=sk-...your OpenAI key...
+AI_PROVIDER=openai
+```
+
+For **Gemini** (Google):
+```
+AI_API_KEY=AIzaSy...your Gemini key...
+AI_PROVIDER=gemini
+```
+
+To enable switching between both in the UI, include both keys:
+```
+AI_API_KEY=AIzaSy...your Gemini key...
+OPEN_AI_API_KEY=sk-...your OpenAI key...
 AI_PROVIDER=openai
 ```
 

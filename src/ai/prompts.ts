@@ -4,7 +4,7 @@
  */
 
 export function summarizePagePrompt(pageText: string, url: string, title: string) {
-  return `Summarize the following web page for a general audience. Include key points and, if possible, a short bullet list. Page title: "${title}". URL: ${url}\n\nContent:\n${pageText}`;
+  return `Summarize the following web page for a general audience. Include key points and, if possible, a short bullet list. Also suggest 3-5 related articles or topics (with links if possible) at the end as "Related Content". Page title: "${title}". URL: ${url}\n\nContent:\n${pageText}`;
 }
 
 export function translatePagePrompt(pageText: string, url: string, title: string, targetLang: string = "en") {
@@ -12,11 +12,11 @@ export function translatePagePrompt(pageText: string, url: string, title: string
 }
 
 export function explainSelectedTextPrompt(selectedText: string, url: string, title: string) {
-  return `Explain the following selected text from a web page. Be concise and clear. Page title: "${title}". URL: ${url}\n\nSelected text:\n${selectedText}`;
+  return `Explain the following selected text from a web page. Be concise and clear. Also suggest 3-5 related articles or topics (with links if possible) at the end as "Related Content". Page title: "${title}". URL: ${url}\n\nSelected text:\n${selectedText}`;
 }
 
 export function generateLinkedInPostPrompt(pageText: string, url: string, title: string) {
-  return `Write a LinkedIn post summarizing the following article. Make it engaging and professional. Page title: "${title}". URL: ${url}\n\nContent:\n${pageText}`;
+  return `Write a LinkedIn post summarizing the following article. Make it engaging and professional. Also suggest 3-5 related articles or topics (with links if possible) at the end as "Related Content". Page title: "${title}". URL: ${url}\n\nContent:\n${pageText}`;
 }
 
 export function detectIntentPrompt(input: string) {

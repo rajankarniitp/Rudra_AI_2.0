@@ -3,11 +3,13 @@ import path from "path";
 import { setupSecurity } from "./security";
 import dotenv from "dotenv";
 
-// Load .env file at startup (absolute path for reliability)
-dotenv.config({ path: require("path").resolve(__dirname, "../.env") });
-console.log("Loaded AI_API_KEY:", process.env.AI_API_KEY ? "[set]" : "[not set]");
-console.log("Loaded OPEN_AI_API_KEY:", process.env.OPEN_AI_API_KEY ? "[set]" : "[not set]");
-console.log("Loaded AI_PROVIDER:", process.env.AI_PROVIDER);
+/* Load .env file at startup (try process.cwd() for reliability) */
+const dotenvPath = require("path").resolve(process.cwd(), ".env");
+console.log("Trying to load .env from:", dotenvPath);
+dotenv.config({ path: dotenvPath });
+console.log("Loaded AI_API_KEY (main):", process.env.AI_API_KEY ? process.env.AI_API_KEY : "[not set]");
+console.log("Loaded OPEN_AI_API_KEY (main):", process.env.OPEN_AI_API_KEY ? process.env.OPEN_AI_API_KEY : "[not set]");
+console.log("Loaded AI_PROVIDER (main):", process.env.AI_PROVIDER);
 
 // Keep a global reference of the window object
 let mainWindow: BrowserWindow | null = null;

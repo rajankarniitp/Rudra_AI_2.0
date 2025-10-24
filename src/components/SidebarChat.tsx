@@ -169,21 +169,7 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
             }}
           >
             {msg.role === "ai" ? (
-              <ReactMarkdown
-                components={{
-                  h1: ({ node, ...props }) => <h1 style={{ fontSize: 20, margin: "12px 0 8px 0", color: "#00bcd4" }} {...props} />,
-                  h2: ({ node, ...props }) => <h2 style={{ fontSize: 17, margin: "10px 0 6px 0", color: "#00bcd4" }} {...props} />,
-                  h3: ({ node, ...props }) => <h3 style={{ fontSize: 15, margin: "8px 0 4px 0", color: "#00bcd4" }} {...props} />,
-                  ul: ({ node, ...props }) => <ul style={{ margin: "8px 0 8px 18px" }} {...props} />,
-                  ol: ({ node, ...props }) => <ol style={{ margin: "8px 0 8px 18px" }} {...props} />,
-                  li: ({ node, ...props }) => <li style={{ marginBottom: 4 }} {...props} />,
-                  code: ({ node, ...props }) => <code style={{ background: "#222", padding: "2px 6px", borderRadius: 6, fontSize: 13 }} {...props} />,
-                  pre: ({ node, ...props }) => <pre style={{ background: "#222", padding: 12, borderRadius: 8, fontSize: 13, overflowX: "auto" }} {...props} />,
-                  a: ({ node, ...props }) => <a style={{ color: "#00bcd4" }} target="_blank" rel="noopener noreferrer" {...props} />
-                }}
-              >
-                {msg.content}
-              </ReactMarkdown>
+              <AIResponseWithRelated content={msg.content} />
             ) : (
               msg.content
             )}
@@ -243,6 +229,76 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
           <span style={{ fontSize: 20 }}>➤</span>
         </button>
       </div>
+    </div>
+  );
+};
+
+/**
+ * Renders AI response with a "Related Content" section if present.
+ */
+const AIResponseWithRelated: React.FC<{ content: string }> = ({ content }) => {
+  // Try to extract "Related Content" section (markdown heading or bold)
+  const relatedRegex = /(?:^|\n)#+\s*Related Content[\s\S]*?((?:\n[-*].+)+)/i;
+  const match = content.match(relatedRegex);
+  let mainContent = content;
+  let relatedContent = "";
+
+  if (match) {
+    mainContent = content.slice(0, match.index).trim();
+    relatedContent = match[1].trim();
+  } else {
+    // Try with bold or plain text
+    const altRegex = /(?:^|\n)(?:\*\*|__)?Related Content(?:\*\*|__)?[\s\S]*?((?:\n[-*].+)+)/i;
+    const altMatch = content.match(altRegex);
+    if (altMatch) {
+      mainContent = content.slice(0, altMatch.index).trim();
+      relatedContent = altMatch[1].trim();
+    }
+  }
+
+  return (
+    <div>
+      <ReactMarkdown
+        components={{
+          h1: ({ node, ...props }) => <h1 style={{ fontSize: 20, margin: "12px 0 8px 0", color: "#00bcd4" }} {...props} />,
+          h2: ({ node, ...props }) => <h2 style={{ fontSize: 17, margin: "10px 0 6px 0", color: "#00bcd4" }} {...props} />,
+          h3: ({ node, ...props }) => <h3 style={{ fontSize: 15, margin: "8px 0 4px 0", color: "#00bcd4" }} {...props} />,
+          ul: ({ node, ...props }) => <ul style={{ margin: "8px 0 8px 18px" }} {...props} />,
+          ol: ({ node, ...props }) => <ol style={{ margin: "8px 0 8px 18px" }} {...props} />,
+          li: ({ node, ...props }) => <li style={{ marginBottom: 4 }} {...props} />,
+          code: ({ node, ...props }) => <code style={{ background: "#222", padding: "2px 6px", borderRadius: 6, fontSize: 13 }} {...props} />,
+          pre: ({ node, ...props }) => <pre style={{ background: "#222", padding: 12, borderRadius: 8, fontSize: 13, overflowX: "auto" }} {...props} />,
+          a: ({ node, ...props }) => <a style={{ color: "#00bcd4" }} target="_blank" rel="noopener noreferrer" {...props} />
+        }}
+      >
+        {mainContent}
+      </ReactMarkdown>
+      {relatedContent && (
+        <div
+          style={{
+            marginTop: 16,
+            padding: "12px 16px",
+            background: "rgba(0,188,212,0.07)",
+            borderRadius: 12,
+            border: "1.5px solid #00bcd4",
+            boxShadow: "0 2px 8px #00bcd422"
+          }}
+        >
+          <div style={{ color: "#00bcd4", fontWeight: 700, marginBottom: 6, fontSize: 15 }}>
+            Related Content
+          </div>
+          <ReactMarkdown
+            components={{
+              ul: ({ node, ...props }) => <ul style={{ margin: "0 0 0 18px" }} {...props} />,
+              ol: ({ node, ...props }) => <ol style={{ margin: "0 0 0 18px" }} {...props} />,
+              li: ({ node, ...props }) => <li style={{ marginBottom: 3 }} {...props} />,
+              a: ({ node, ...props }) => <a style={{ color: "#00bcd4" }} target="_blank" rel="noopener noreferrer" {...props} />
+            }}
+          >
+            {relatedContent}
+          </ReactMarkdown>
+        </div>
+      )}
     </div>
   );
 };
