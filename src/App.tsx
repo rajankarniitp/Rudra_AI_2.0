@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import AddressBar from "./components/AddressBar";
 import TabManager from "./components/TabManager";
 import PageView from "./components/PageView";
-import NewTabPage from "./components/NewTabPage";
+import NewTabPage, { quickLinks as newTabQuickLinks } from "./components/NewTabPage";
 import SidebarChat from "./components/SidebarChat";
 import SummaryCard from "./components/SummaryCard";
 import {
@@ -55,6 +55,52 @@ const App: React.FC = () => {
   const [currentTabId, setCurrentTabId] = useState("tab-1");
   const webviewRef = React.useRef<any>(null);
 
+  // Get current tab URL
+  const currentTab = tabs.find(t => t.id === currentTabId);
+
+  // Navigation state for back/forward buttons
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
+  const [webviewReady, setWebviewReady] = useState(false);
+
+  // Reset webviewReady on tab/url change
+  useEffect(() => {
+    setWebviewReady(false);
+  }, [currentTab?.url]);
+
+  // Update navigation state when webview navigates
+  useEffect(() => {
+    const webview = webviewRef.current;
+    if (!webview) return;
+
+    const updateNavState = () => {
+      if (webviewReady) {
+        setCanGoBack(webview.canGoBack ? webview.canGoBack() : false);
+        setCanGoForward(webview.canGoForward ? webview.canGoForward() : false);
+      }
+    };
+
+    const handleDomReady = () => {
+      setWebviewReady(true);
+      setTimeout(updateNavState, 0);
+    };
+
+    webview.addEventListener("did-navigate", updateNavState);
+    webview.addEventListener("did-navigate-in-page", updateNavState);
+    webview.addEventListener("did-frame-navigate", updateNavState);
+    webview.addEventListener("dom-ready", handleDomReady);
+
+    // Only update state if already ready
+    if (webviewReady) updateNavState();
+
+    return () => {
+      webview.removeEventListener("did-navigate", updateNavState);
+      webview.removeEventListener("did-navigate-in-page", updateNavState);
+      webview.removeEventListener("did-frame-navigate", updateNavState);
+      webview.removeEventListener("dom-ready", handleDomReady);
+    };
+  }, [currentTab?.url, webviewReady]);
+
   // Hybrid search/navigation logic
   function isValidUrl(input: string) {
     try {
@@ -66,6 +112,14 @@ const App: React.FC = () => {
   }
 
   const handleNavigate = (input: string) => {
+    const trimmedInput = input.trim();
+    if (trimmedInput.length > 0) {
+      setRecentSuggestions(prev => {
+        const normalized = trimmedInput.toLowerCase();
+        const deduped = [trimmedInput, ...prev.filter(entry => entry.toLowerCase() !== normalized)];
+        return deduped.slice(0, 12);
+      });
+    }
     let url = input;
     if (!isValidUrl(input)) {
       // Redirect to Google search for MVP
@@ -86,9 +140,6 @@ const App: React.FC = () => {
 
   // For MVP, no tab close/add logic yet
 
-  // Get current tab URL
-  const currentTab = tabs.find(t => t.id === currentTabId);
-
   // Per-tab chat history and assistant open state
   const chatHistory = currentTab?.chatHistory || [];
   const assistantOpen = currentTab?.assistantOpen || false;
@@ -96,6 +147,23 @@ const App: React.FC = () => {
   // Per-tab chat state and assistant open state
   const [aiLoading, setAiLoading] = useState(false);
   const [provider, setProvider] = useState<"openai" | "gemini">("openai");
+  const [recentSuggestions, setRecentSuggestions] = useState<string[]>([]);
+  const latestAiController = React.useRef<AbortController | null>(null);
+
+  const suggestionPool = React.useMemo(() => {
+    const quickLinkQueries = newTabQuickLinks.map(link => link.query);
+    const combined: string[] = [];
+    const seen = new Set<string>();
+    [...recentSuggestions, ...quickLinkQueries].forEach(item => {
+      const normalized = item.trim();
+      const key = normalized.toLowerCase();
+      if (normalized && !seen.has(key)) {
+        seen.add(key);
+        combined.push(normalized);
+      }
+    });
+    return combined;
+  }, [recentSuggestions]);
 
   // AI sidebar action handler
   const handleAIAction = async (
@@ -140,6 +208,11 @@ const App: React.FC = () => {
       }
     }
 
+    if (latestAiController.current) {
+      latestAiController.current.abort();
+      latestAiController.current = null;
+    }
+
     setTabs(tabs =>
       tabs.map(tab =>
         tab.id === currentTabId
@@ -148,9 +221,20 @@ const App: React.FC = () => {
       )
     );
     setAiLoading(true);
+    const controller = new AbortController();
+    latestAiController.current = controller;
     try {
       // Patch: Pass provider to callAI via global (since env is read in callAI)
-      const aiRes = await callAI({ prompt, model: provider === "gemini" ? "models/gemini-2.5-pro" : undefined });
+      const aiRes = await callAI({
+        prompt,
+        model: provider === "gemini" ? "models/gemini-2.5-pro" : undefined,
+        max_tokens: 400,
+        temperature: provider === "gemini" ? 0.6 : 0.5,
+        signal: controller.signal
+      });
+      if (controller.signal.aborted) {
+        return;
+      }
       setTabs(tabs =>
         tabs.map(tab =>
           tab.id === currentTabId
@@ -168,6 +252,9 @@ const App: React.FC = () => {
         });
       }
     } catch (err: any) {
+      if (err?.name === "AbortError") {
+        return;
+      }
       setTabs(tabs =>
         tabs.map(tab =>
           tab.id === currentTabId
@@ -175,108 +262,18 @@ const App: React.FC = () => {
             : tab
         )
       );
+    } finally {
+      if (latestAiController.current === controller) {
+        latestAiController.current = null;
+      }
     }
     setAiLoading(false);
   };
 
   return (
     <div className="app-root">
-      {/* Address Bar */}
-      <header className="app-header" style={{ background: "#333", borderBottom: "2px solid #00bcd4", padding: "8px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{
-          width: "100%",
-          maxWidth: 700,
-          margin: "0 auto",
-          background: "#222",
-          borderRadius: 8,
-          boxShadow: "0 2px 8px #0003",
-          zIndex: 2,
-          position: "relative"
-        }}>
-          <AddressBar
-            onNavigate={handleNavigate}
-            value={currentTab?.addressInput || ""}
-            onChange={e => {
-              const value = e.target.value;
-              setTabs(tabs =>
-                tabs.map(tab =>
-                  tab.id === currentTabId
-                    ? { ...tab, addressInput: value }
-                    : tab
-                )
-              );
-            }}
-          />
-        </div>
-        <button
-          style={{
-            marginLeft: 16,
-            background: "none",
-            border: "none",
-            color: "#00bcd4",
-            fontSize: "1.1rem",
-            fontWeight: 600,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "6px 16px",
-            borderRadius: 8,
-            transition: "background 0.2s"
-          }}
-          onClick={() => {
-            setTabs(tabs =>
-              tabs.map(tab =>
-                tab.id === currentTabId
-                  ? { ...tab, assistantOpen: !tab.assistantOpen }
-                  : tab
-              )
-            );
-          }}
-          aria-label="Toggle Assistant"
-        >
-          <span style={{ fontSize: 22, display: "inline-block", transform: "translateY(2px)" }}>🤖</span>
-          Assistant
-        </button>
-      </header>
-
-      {/* Main Content: Tabs + PageView + Sidebar */}
-      <div className="app-main" style={{ display: "flex", height: "100%" }}>
-        {assistantOpen ? (
-          <aside
-            className="sidebar"
-            style={{
-              transition: "width 0.3s, opacity 0.3s",
-              width: "340px",
-              minWidth: "220px",
-              opacity: 1,
-              overflow: "hidden"
-            }}
-          >
-            <SidebarChat
-              onAction={handleAIAction}
-              chatHistory={chatHistory}
-              loading={aiLoading}
-              provider={provider}
-              onProviderChange={prov => setProvider(prov)}
-              onClose={() => {
-                setTabs(tabs =>
-                  tabs.map(tab =>
-                    tab.id === currentTabId
-                      ? { ...tab, assistantOpen: false }
-                      : tab
-                  )
-                );
-              }}
-            />
-          </aside>
-        ) : null}
-        <section className="browser-shell" style={{
-          flex: 1,
-          minWidth: 0,
-          minHeight: 0,
-          transition: "width 0.3s"
-        }}>
+      <header className="primary-topbar">
+        <div className="topbar-row topbar-row--tabs">
           <TabManager
             tabs={tabs}
             onTabSelect={handleTabSelect}
@@ -313,20 +310,77 @@ const App: React.FC = () => {
               });
             }}
           />
-          <div style={{
-            flex: 1,
-            border: "2px solid #00bcd4",
-            marginTop: 8,
-            background: "#181a20",
-            borderRadius: 8,
-            height: "calc(100vh - 120px)",
-            minHeight: 0,
-            display: "flex",
-            flexDirection: "column"
-          }}>
+        </div>
+        <div className="topbar-row topbar-row--address">
+          <div className="topbar-omnibox">
+            <AddressBar
+              variant="default"
+              suggestions={suggestionPool}
+              onNavigate={handleNavigate}
+              value={currentTab?.addressInput || ""}
+              onChange={e => {
+                const value = e.target.value;
+                setTabs(tabs =>
+                  tabs.map(tab =>
+                    tab.id === currentTabId
+                      ? { ...tab, addressInput: value }
+                      : tab
+                  )
+                );
+              }}
+              onBack={() => {
+                if (webviewRef.current && webviewRef.current.canGoBack && webviewRef.current.canGoBack()) {
+                  webviewRef.current.goBack();
+                }
+              }}
+              onForward={() => {
+                if (webviewRef.current && webviewRef.current.canGoForward && webviewRef.current.canGoForward()) {
+                  webviewRef.current.goForward();
+                }
+              }}
+              onRefresh={() => {
+                if (webviewRef.current && webviewRef.current.reload) {
+                  webviewRef.current.reload();
+                }
+              }}
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+            />
+          </div>
+          <button
+            className={`assistant-toggle ${assistantOpen ? "is-active" : ""}`}
+            onClick={() => {
+              setTabs(tabs =>
+                tabs.map(tab =>
+                  tab.id === currentTabId
+                    ? { ...tab, assistantOpen: !tab.assistantOpen }
+                    : tab
+                )
+              );
+            }}
+            aria-label="Toggle assistant panel"
+          >
+            <span className="assistant-toggle__icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 18 18">
+                <path
+                  d="M5 7a4 4 0 118 0v1h1.2a1.8 1.8 0 010 3.6h-0.5A4.5 4.5 0 019 15a4.5 4.5 0 01-4.7-3.4H3.8a1.8 1.8 0 010-3.6H5z"
+                  fill="currentColor"
+                />
+              </svg>
+            </span>
+            <span className="assistant-toggle__label">Assistant</span>
+          </button>
+        </div>
+      </header>
+
+      <div className="app-main">
+        <section className="browser-shell">
+          <div className="page-stage">
             {currentTab && (
               (!currentTab.url || currentTab.url === "about:blank") ? (
                 <NewTabPage
+                  variant="hero"
+                  suggestions={suggestionPool}
                   value={currentTab.addressInput || ""}
                   onNavigate={handleNavigate}
                   onChange={e => {
@@ -353,10 +407,12 @@ const App: React.FC = () => {
                     );
                   }}
                   onDomExtract={text => {
+                    const compact = text.replace(/\s+/g, " ").trim();
+                    const limited = compact.slice(0, 4000);
                     setTabs(tabs =>
                       tabs.map(tab =>
                         tab.id === currentTabId
-                          ? { ...tab, pageText: text }
+                          ? { ...tab, pageText: limited }
                           : tab
                       )
                     );
@@ -367,6 +423,26 @@ const App: React.FC = () => {
             )}
           </div>
         </section>
+        {assistantOpen ? (
+          <aside className="assistant-panel">
+            <SidebarChat
+              onAction={handleAIAction}
+              chatHistory={chatHistory}
+              loading={aiLoading}
+              provider={provider}
+              onProviderChange={prov => setProvider(prov)}
+              onClose={() => {
+                setTabs(tabs =>
+                  tabs.map(tab =>
+                    tab.id === currentTabId
+                      ? { ...tab, assistantOpen: false }
+                      : tab
+                  )
+                );
+              }}
+            />
+          </aside>
+        ) : null}
       </div>
     </div>
   );

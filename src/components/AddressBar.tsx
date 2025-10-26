@@ -10,18 +10,208 @@ interface AddressBarProps {
   value?: string;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   suggestions?: string[];
+  variant?: "default" | "hero";
+  onBack?: () => void;
+  onForward?: () => void;
+  onRefresh?: () => void;
+  canGoBack?: boolean;
+  canGoForward?: boolean;
 }
 
-const AddressBar: React.FC<AddressBarProps> = ({ onNavigate, value = "", onChange, suggestions = [] }) => {
+const SearchIcon: React.FC = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 16 16"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+    <line x1="10.8" y1="10.8" x2="14" y2="14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+  </svg>
+);
+
+const ArrowIcon: React.FC = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 18 18"
+    aria-hidden="true"
+    focusable="false"
+  >
+    <path
+      d="M4 9h8.5l-3.2-3.2 1.1-1.1L15.2 9l-4.8 4.3-1.1-1.1L12.5 10H4z"
+      fill="currentColor"
+    />
+  </svg>
+);
+
+const BackIcon: React.FC = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
+    <path d="M14.5 3l-7 8 7 8" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const ForwardIcon: React.FC = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
+    <path d="M7.5 3l7 8-7 8" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const RefreshIcon: React.FC = () => (
+  <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
+    <path d="M17 11a6 6 0 1 1-2.1-4.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+    <polyline points="17 5.5 17 11 11 11" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+  </svg>
+);
+
+const AddressBar: React.FC<AddressBarProps> = ({
+  onNavigate,
+  value = "",
+  onChange,
+  suggestions = [],
+  variant = "default",
+  onBack,
+  onForward,
+  onRefresh,
+  canGoBack = true,
+  canGoForward = true
+}) => {
   const [input, setInput] = useState(value);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [filtered, setFiltered] = useState<string[]>([]);
   const [highlight, setHighlight] = useState(-1);
 
+  const suggestionUniverse = React.useMemo(() => {
+    const seen = new Set<string>();
+    const ordered: string[] = [];
+    suggestions.forEach(option => {
+      const trimmed = option.trim();
+      const key = trimmed.toLowerCase();
+      if (trimmed && !seen.has(key)) {
+        seen.add(key);
+        ordered.push(trimmed);
+      }
+    });
+    return ordered;
+  }, [suggestions]);
+
   // Keep local state in sync with value prop
   React.useEffect(() => {
     setInput(value);
   }, [value]);
+
+  const updateSuggestions = React.useCallback((raw: string) => {
+    if (suggestionUniverse.length === 0) {
+      setShowSuggestions(false);
+      setFiltered([]);
+      setHighlight(-1);
+      return;
+    }
+    const trimmed = raw.trim();
+    const lowerQuery = trimmed.toLowerCase();
+
+    if (!trimmed) {
+      setFiltered(suggestionUniverse.slice(0, 7));
+      setShowSuggestions(true);
+      setHighlight(-1);
+      return;
+    }
+
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
+    const lastToken = tokens[tokens.length - 1] || "";
+    const lastTokenLower = lastToken.toLowerCase();
+
+    const dynamic = new Set<string>();
+
+    suggestionUniverse.forEach(seed => {
+      const seedLower = seed.toLowerCase();
+      if (seedLower.includes(lowerQuery)) {
+        dynamic.add(seed);
+      }
+      if (tokens.length >= 2 && seedLower.startsWith(lowerQuery) && seedLower !== lowerQuery) {
+        dynamic.add(seed);
+      }
+    });
+
+    if (lastToken.length >= 2) {
+      suggestionUniverse.forEach(seed => {
+        seed.split(/\s+/).forEach(word => {
+          const wordLower = word.toLowerCase();
+          if (wordLower.startsWith(lastTokenLower) && wordLower !== lastTokenLower) {
+            const completed = [...tokens.slice(0, -1), word].join(" ");
+            dynamic.add(completed);
+          }
+        });
+      });
+    }
+
+    const templates = [
+      `Latest ${trimmed} updates`,
+      `Explain ${trimmed} in simple terms`,
+      `How does ${trimmed} work`,
+      `Best resources for ${trimmed}`,
+      `Compare ${trimmed} alternatives`,
+      `Research on ${trimmed}`,
+      `Impact of ${trimmed}`
+    ];
+    templates.forEach(template => dynamic.add(template));
+
+    const suffixes = [
+      "news",
+      "pricing",
+      "market size",
+      "case studies",
+      "tutorial",
+      "roadmap",
+      "API integration"
+    ];
+    suffixes.forEach(suffix => dynamic.add(`${trimmed} ${suffix}`));
+
+    const scored = Array.from(dynamic).map(value => {
+      const valLower = value.toLowerCase();
+      const rank =
+        valLower === lowerQuery ? -1 :
+        valLower.startsWith(lowerQuery) ? 0 :
+        valLower.includes(lowerQuery) ? 1 : 2;
+      const overlapScore = tokens.reduce((score, token) => {
+        return valLower.includes(token.toLowerCase()) ? score + 1 : score;
+      }, 0);
+      const lengthScore = Math.abs(value.length - trimmed.length);
+      return { value, rank, overlapScore, lengthScore };
+    }).sort((a, b) =>
+      a.rank - b.rank ||
+      b.overlapScore - a.overlapScore ||
+      a.lengthScore - b.lengthScore ||
+      a.value.localeCompare(b.value)
+    );
+
+    const next = scored.map(entry => entry.value);
+    const fallback = suggestionUniverse.filter(seed =>
+      seed.toLowerCase().startsWith(lowerQuery)
+    );
+
+    const merged = [...next, ...fallback];
+    const unique: string[] = [];
+    const seenMerge = new Set<string>();
+    merged.forEach(option => {
+      const key = option.toLowerCase();
+      if (!seenMerge.has(key)) {
+        seenMerge.add(key);
+        unique.push(option);
+      }
+    });
+
+    setFiltered(unique.slice(0, 7));
+    setShowSuggestions(unique.length > 0);
+    setHighlight(-1);
+  }, [suggestionUniverse]);
+
+  React.useEffect(() => {
+    if (showSuggestions) {
+      updateSuggestions(input);
+    }
+  }, [suggestionUniverse, showSuggestions, input, updateSuggestions]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,18 +224,7 @@ const AddressBar: React.FC<AddressBarProps> = ({ onNavigate, value = "", onChang
     const val = e.target.value;
     setInput(val);
     if (onChange) onChange(e);
-    // Filter suggestions (case-insensitive, contains)
-    if (val.length > 0) {
-      const filtered = suggestions.filter(s =>
-        s.toLowerCase().includes(val.toLowerCase())
-      );
-      setFiltered(filtered.slice(0, 6));
-      setShowSuggestions(filtered.length > 0);
-    } else {
-      setShowSuggestions(false);
-      setFiltered([]);
-    }
-    setHighlight(-1);
+    updateSuggestions(val);
   };
 
   const handleSuggestionClick = (s: string) => {
@@ -69,73 +248,69 @@ const AddressBar: React.FC<AddressBarProps> = ({ onNavigate, value = "", onChang
     }
   };
 
-  // Example static suggestions (replace with API or recent searches for advanced)
-  const staticSuggestions = [
-    "OpenAI GPT-4",
-    "Gemini AI",
-    "Perplexity AI",
-    "Latest AI news",
-    "How to use Rudra AI",
-    "AI browser extensions",
-    "Best AI tools 2025",
-    "AI for research",
-    "AI for students",
-    "AI for productivity"
-  ];
-
   return (
-    <div style={{ position: "relative", width: "100%" }}>
-      <form className="address-bar" onSubmit={handleSubmit} autoComplete="off">
+    <div className={`address-shell address-shell--${variant}`}>
+      <form className={`address-bar address-bar--${variant}`} onSubmit={handleSubmit} autoComplete="off">
+        <button
+          type="button"
+          className="address-nav-btn"
+          aria-label="Back"
+          onClick={onBack}
+          disabled={!canGoBack}
+          style={{ opacity: canGoBack ? 1 : 0.4 }}
+        >
+          <BackIcon />
+        </button>
+        <button
+          type="button"
+          className="address-nav-btn"
+          aria-label="Forward"
+          onClick={onForward}
+          disabled={!canGoForward}
+          style={{ opacity: canGoForward ? 1 : 0.4 }}
+        >
+          <ForwardIcon />
+        </button>
+        <button
+          type="button"
+          className="address-nav-btn"
+          aria-label="Refresh"
+          onClick={onRefresh}
+        >
+          <RefreshIcon />
+        </button>
+        <span className="address-icon">
+          <SearchIcon />
+        </span>
         <input
           type="text"
           className="address-input"
-          placeholder="Ask anything or navigate…"
+          placeholder="Ask anything or navigate..."
           value={input}
           onChange={handleChange}
-          onFocus={handleChange}
+          onFocus={() => updateSuggestions(input)}
           onBlur={() => setTimeout(() => setShowSuggestions(false), 120)}
           onKeyDown={handleKeyDown}
-          autoFocus
+          autoFocus={variant === "hero"}
           spellCheck
           autoComplete="off"
         />
-        <button type="submit" className="go-btn" aria-label="Go">
-          ➔
+        <button type="submit" className="address-submit" aria-label="Search">
+          <ArrowIcon />
         </button>
       </form>
       {showSuggestions && (
-        <div
-          style={{
-            position: "absolute",
-            top: "110%",
-            left: 0,
-            width: "100%",
-            background: "#23272f",
-            border: "1.5px solid #00bcd4",
-            borderRadius: 10,
-            boxShadow: "0 4px 24px #00bcd422",
-            zIndex: 10,
-            maxHeight: 220,
-            overflowY: "auto"
-          }}
-        >
-          {(filtered.length > 0 ? filtered : staticSuggestions).map((s, i) => (
-            <div
+        <div className="address-suggestions">
+          {(filtered.length > 0 ? filtered : suggestionUniverse.slice(0, 7)).map((s, i) => (
+            <button
+              type="button"
               key={s}
+              className={`address-suggestion ${highlight === i ? "is-active" : ""}`}
               onMouseDown={() => handleSuggestionClick(s)}
-              style={{
-                padding: "10px 18px",
-                color: "#00bcd4",
-                background: highlight === i ? "#181a20" : "transparent",
-                fontWeight: highlight === i ? 700 : 500,
-                fontSize: 15,
-                cursor: "pointer",
-                borderBottom: "1px solid #222"
-              }}
               onMouseEnter={() => setHighlight(i)}
             >
-              {s}
-            </div>
+              <span className="address-suggestion__text">{s}</span>
+            </button>
           ))}
         </div>
       )}

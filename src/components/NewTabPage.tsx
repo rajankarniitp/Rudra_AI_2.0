@@ -10,47 +10,44 @@ interface NewTabPageProps {
   value: string;
   onNavigate: (input: string) => void;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  variant?: "hero" | "compact";
+  suggestions?: string[];
 }
 
-const NewTabPage: React.FC<NewTabPageProps> = ({ value, onNavigate, onChange }) => {
+export const quickLinks = [
+  { label: "AI News Roundup", query: "Latest breakthroughs in artificial intelligence" },
+  { label: "Compare models", query: "Compare GPT-4o with Gemini 2.0" },
+  { label: "Market insights", query: "What happened in global markets today?" },
+  { label: "Explain a topic", query: "Explain quantum computing like I'm new to it" }
+];
+
+const NewTabPage: React.FC<NewTabPageProps> = ({ value, onNavigate, onChange, variant = "hero", suggestions }) => {
   return (
-    <div
-      style={{
-        flex: 1,
-        height: "100%",
-        width: "100%",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "url('backgrounds/rudra-ai-bg.png') center center / cover no-repeat, #181a20"
-      }}
-    >
-      <div style={{
-        background: "rgba(24,26,32,0.85)",
-        borderRadius: 16,
-        boxShadow: "0 4px 32px #0008",
-        padding: "48px 32px",
-        minWidth: 400,
-        maxWidth: 600,
-        width: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center"
-      }}>
-        <h1 style={{
-          color: "#00bcd4",
-          fontSize: "2.2rem",
-          fontWeight: 700,
-          marginBottom: 32,
-          letterSpacing: 1
-        }}>
-          Rudra AI
-        </h1>
+    <div className="new-tab">
+      <div className="new-tab__halo" aria-hidden="true" />
+      <div className="new-tab__content">
+        <div className="new-tab__badge">Rudra AI</div>
+        <h1 className="new-tab__headline">Ask anything, explore everything.</h1>
+        <p className="new-tab__tagline">Live browsing with next-gen inspired intelligence — stay curious without leaving the page.</p>
         <AddressBar
           value={value}
           onNavigate={onNavigate}
           onChange={onChange}
+          variant={variant === "hero" ? "hero" : "default"}
+          suggestions={suggestions}
         />
+        <div className="new-tab__chips">
+          {quickLinks.map(link => (
+            <button
+              type="button"
+              key={link.label}
+              className="new-tab__chip"
+              onClick={() => onNavigate(link.query)}
+            >
+              {link.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );

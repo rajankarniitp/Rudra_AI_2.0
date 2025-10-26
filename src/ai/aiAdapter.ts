@@ -12,6 +12,7 @@ export interface CallAIPayload {
   stream?: boolean;
   max_tokens?: number;
   temperature?: number;
+  signal?: AbortSignal;
   // Add more as needed
 }
 
@@ -56,6 +57,7 @@ async function callOpenAI(payload: CallAIPayload, apiKey: string): Promise<AIRes
       "Authorization": `Bearer ${apiKey}`,
       "Content-Type": "application/json"
     },
+    signal: payload.signal,
     body: JSON.stringify({
       model: payload.model || "gpt-3.5-turbo",
       messages: [{ role: "user", content: payload.prompt }],
@@ -81,6 +83,7 @@ async function callGemini(payload: CallAIPayload, apiKey: string, model: string)
       headers: {
         "Content-Type": "application/json"
       },
+      signal: payload.signal,
       body: JSON.stringify({
         contents: [
           {

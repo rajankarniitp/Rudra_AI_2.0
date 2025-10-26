@@ -15,6 +15,16 @@ interface SidebarChatProps {
   onClose?: () => void;
 }
 
+const SparkIcon: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+    <path
+      d="M9 1l1.3 3.8 3.7 1.3-3.7 1.3L9 11l-1.3-3.6-3.7-1.3 3.7-1.3L9 1zM4.4 10.8l0.9 2.6 2.6 0.9-2.6 0.9-0.9 2.6-0.9-2.6-2.6-0.9 2.6-0.9 0.9-2.6zm9.2 0l0.9 2.6 2.6 0.9-2.6 0.9-0.9 2.6-0.9-2.6-2.6-0.9 2.6-0.9 0.9-2.6z"
+      fill="currentColor"
+      fillRule="evenodd"
+    />
+  </svg>
+);
+
 const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loading, provider, onProviderChange, onClose }) => {
   // Chat input state
   const [input, setInput] = React.useState("");
@@ -29,144 +39,57 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
   return (
     <div
       className="sidebar-chat"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
-        background: "radial-gradient(circle at 60% 20%, #23272f 60%, #181a20 100%)",
-        position: "relative",
-        overflow: "hidden"
-      }}
     >
-      {/* Curved SVG background at the top */}
-      <svg
-        width="100%"
-        height="80"
-        viewBox="0 0 340 80"
-        fill="none"
-        xmlns="http://www.w3.org/2000/svg"
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          zIndex: 0,
-          pointerEvents: "none"
-        }}
-      >
-        <path
-          d="M0,80 Q170,-40 340,80"
-          stroke="#00bcd4"
-          strokeWidth="3"
-          fill="none"
-          opacity="0.18"
-        />
-      </svg>
-      <div className="sidebar-header" style={{ paddingBottom: 8, position: "relative" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 22, color: "#00bcd4" }}>🤖</span>
-          <h2 style={{ margin: 0, fontSize: "1.3rem" }}>Assistant</h2>
+      <div className="sidebar-header">
+        <div className="sidebar-header__row">
+          <span className="sidebar-header__icon">
+            <SparkIcon />
+          </span>
+          <div className="sidebar-header__titles">
+            <h2 className="sidebar-header__title">Assistant</h2>
+            <span className="sidebar-header__subtitle">Next-gen context on demand</span>
+          </div>
           {typeof onClose === "function" && (
             <button
               onClick={onClose}
               aria-label="Close Assistant"
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                background: "none",
-                border: "none",
-                color: "#888",
-                fontSize: 22,
-                cursor: "pointer",
-                padding: 4,
-                zIndex: 2
-              }}
+              className="sidebar-header__close"
             >
               ×
             </button>
           )}
         </div>
-        <div style={{ marginTop: 10, marginBottom: 8, display: "flex", alignItems: "center", gap: 8 }}>
-          <select
-            value={provider}
-            onChange={e => onProviderChange(e.target.value as "openai" | "gemini")}
-            style={{
-              background: "#23272f",
-              color: "#00bcd4",
-              border: "1px solid #00bcd4",
-              borderRadius: 16,
-              fontSize: 14,
-              padding: "4px 18px",
-              cursor: "pointer",
-              fontWeight: 600,
-              outline: "none",
-              boxShadow: "0 1px 4px #00bcd422"
-            }}
-            aria-label="Select AI Provider"
-          >
-            <option value="openai">Advanced</option>
-            <option value="gemini">Best</option>
-          </select>
+        <div className="sidebar-controls">
+          <label className="sidebar-provider">
+            <span className="sidebar-provider__label">Model</span>
+            <select
+              value={provider}
+              onChange={e => onProviderChange(e.target.value as "openai" | "gemini")}
+              className="sidebar-provider__select"
+              aria-label="Select AI Provider"
+            >
+              <option value="openai">Advanced</option>
+              <option value="gemini">Best</option>
+            </select>
+          </label>
         </div>
-        <div className="sidebar-actions" style={{ marginTop: 0, marginBottom: 8 }}>
+        <div className="sidebar-actions">
           <button onClick={() => onAction("summarize")}>Summarize page</button>
           <button onClick={() => onAction("translate")}>Translate page</button>
           <button onClick={() => onAction("explain")}>Explain selected</button>
           <button onClick={() => onAction("linkedin")}>Generate LinkedIn post</button>
         </div>
       </div>
-      <div
-        className="chat-history"
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "8px 0 8px 0",
-          background: "url('/backgrounds/rudra-ai-bg.png') center center / 60% no-repeat",
-          opacity: 0.95,
-          position: "relative"
-        }}
-      >
-        {/* Large faded RUDRA watermark */}
-        <div
-          style={{
-            position: "absolute",
-            top: "30%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            fontSize: "5rem",
-            fontWeight: 900,
-            color: "#00bcd4",
-            opacity: 0.08,
-            letterSpacing: 8,
-            pointerEvents: "none",
-            userSelect: "none",
-            zIndex: 0,
-            fontFamily: "'Inter', 'Segoe UI', Arial, sans-serif"
-          }}
-        >
-          RUDRA
-        </div>
+      <div className="chat-history">
         {chatHistory.length === 0 && (
-          <div className="empty-chat" style={{ color: "#aaa", textAlign: "center", marginTop: 32 }}>
-            <span style={{ fontSize: 18 }}>No messages yet.</span>
+          <div className="empty-chat">
+            <span>No messages yet. Ask anything about the page.</span>
           </div>
         )}
         {chatHistory.map((msg, i) => (
           <div
             key={i}
             className={`chat-msg ${msg.role}`}
-            style={{
-              background: msg.role === "user" ? "#23272f" : "#1a1d23",
-              color: msg.role === "user" ? "#fff" : "#b2faff",
-              alignSelf: msg.role === "user" ? "flex-end" : "flex-start",
-              borderRadius: 16,
-              padding: "10px 16px",
-              margin: "8px 0",
-              maxWidth: "80%",
-              fontSize: 15,
-              boxShadow: msg.role === "ai" ? "0 2px 8px #00bcd4aa" : "none",
-              overflowWrap: "anywhere"
-            }}
           >
             {msg.role === "ai" ? (
               <AIResponseWithRelated content={msg.content} />
@@ -176,22 +99,12 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
           </div>
         ))}
         {loading && (
-          <div className="chat-msg ai loading" style={{ fontStyle: "italic", color: "#b2faff" }}>
+          <div className="chat-msg ai loading">
             AI is thinking…
           </div>
         )}
       </div>
-      <div
-        className="chat-input"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "12px 8px 8px 8px",
-          borderTop: "1px solid #222",
-          background: "rgba(24,26,32,0.95)"
-        }}
-      >
+      <div className="chat-input">
         <input
           type="text"
           value={input}
@@ -199,34 +112,15 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
           onKeyDown={e => {
             if (e.key === "Enter") handleSend();
           }}
-          placeholder="Ask anything…"
-          style={{
-            flex: 1,
-            background: "#23272f",
-            color: "#e6e6e6",
-            border: "1px solid #333",
-            borderRadius: 12,
-            padding: "10px 16px",
-            fontSize: 15,
-            outline: "none"
-          }}
+          placeholder="Ask anything..."
         />
         <button
           onClick={handleSend}
-          style={{
-            background: "#00bcd4",
-            color: "#181a20",
-            border: "none",
-            borderRadius: 12,
-            padding: "8px 16px",
-            fontWeight: 700,
-            fontSize: 18,
-            cursor: "pointer",
-            transition: "background 0.2s"
-          }}
           aria-label="Send"
         >
-          <span style={{ fontSize: 20 }}>➤</span>
+          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+            <path d="M3 2l12 7-12 7 3-7-3-7z" fill="currentColor" />
+          </svg>
         </button>
       </div>
     </div>
@@ -260,15 +154,15 @@ const AIResponseWithRelated: React.FC<{ content: string }> = ({ content }) => {
     <div>
       <ReactMarkdown
         components={{
-          h1: ({ node, ...props }) => <h1 style={{ fontSize: 20, margin: "12px 0 8px 0", color: "#00bcd4" }} {...props} />,
-          h2: ({ node, ...props }) => <h2 style={{ fontSize: 17, margin: "10px 0 6px 0", color: "#00bcd4" }} {...props} />,
-          h3: ({ node, ...props }) => <h3 style={{ fontSize: 15, margin: "8px 0 4px 0", color: "#00bcd4" }} {...props} />,
+          h1: ({ node, ...props }) => <h1 style={{ fontSize: 20, margin: "12px 0 8px 0", color: "var(--accent)" }} {...props} />,
+          h2: ({ node, ...props }) => <h2 style={{ fontSize: 17, margin: "10px 0 6px 0", color: "var(--accent)" }} {...props} />,
+          h3: ({ node, ...props }) => <h3 style={{ fontSize: 15, margin: "8px 0 4px 0", color: "var(--accent)" }} {...props} />,
           ul: ({ node, ...props }) => <ul style={{ margin: "8px 0 8px 18px" }} {...props} />,
           ol: ({ node, ...props }) => <ol style={{ margin: "8px 0 8px 18px" }} {...props} />,
           li: ({ node, ...props }) => <li style={{ marginBottom: 4 }} {...props} />,
-          code: ({ node, ...props }) => <code style={{ background: "#222", padding: "2px 6px", borderRadius: 6, fontSize: 13 }} {...props} />,
-          pre: ({ node, ...props }) => <pre style={{ background: "#222", padding: 12, borderRadius: 8, fontSize: 13, overflowX: "auto" }} {...props} />,
-          a: ({ node, ...props }) => <a style={{ color: "#00bcd4" }} target="_blank" rel="noopener noreferrer" {...props} />
+          code: ({ node, ...props }) => <code style={{ background: "rgba(12,22,34,0.85)", padding: "2px 6px", borderRadius: 6, fontSize: 13 }} {...props} />,
+          pre: ({ node, ...props }) => <pre style={{ background: "rgba(12,22,34,0.9)", padding: 12, borderRadius: 8, fontSize: 13, overflowX: "auto" }} {...props} />,
+          a: ({ node, ...props }) => <a style={{ color: "var(--accent)" }} target="_blank" rel="noopener noreferrer" {...props} />
         }}
       >
         {mainContent}
@@ -278,13 +172,13 @@ const AIResponseWithRelated: React.FC<{ content: string }> = ({ content }) => {
           style={{
             marginTop: 16,
             padding: "12px 16px",
-            background: "rgba(0,188,212,0.07)",
+            background: "rgba(31, 209, 255, 0.08)",
             borderRadius: 12,
-            border: "1.5px solid #00bcd4",
-            boxShadow: "0 2px 8px #00bcd422"
+            border: "1.5px solid rgba(31, 209, 255, 0.35)",
+            boxShadow: "0 12px 30px rgba(12, 32, 48, 0.35)"
           }}
         >
-          <div style={{ color: "#00bcd4", fontWeight: 700, marginBottom: 6, fontSize: 15 }}>
+          <div style={{ color: "var(--accent)", fontWeight: 700, marginBottom: 6, fontSize: 15 }}>
             Related Content
           </div>
           <ReactMarkdown
@@ -292,7 +186,7 @@ const AIResponseWithRelated: React.FC<{ content: string }> = ({ content }) => {
               ul: ({ node, ...props }) => <ul style={{ margin: "0 0 0 18px" }} {...props} />,
               ol: ({ node, ...props }) => <ol style={{ margin: "0 0 0 18px" }} {...props} />,
               li: ({ node, ...props }) => <li style={{ marginBottom: 3 }} {...props} />,
-              a: ({ node, ...props }) => <a style={{ color: "#00bcd4" }} target="_blank" rel="noopener noreferrer" {...props} />
+              a: ({ node, ...props }) => <a style={{ color: "var(--accent)" }} target="_blank" rel="noopener noreferrer" {...props} />
             }}
           >
             {relatedContent}
