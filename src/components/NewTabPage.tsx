@@ -35,6 +35,7 @@ const NewTabPage: React.FC<NewTabPageProps> = ({ value, onNavigate, onChange, va
           onChange={onChange}
           variant={variant === "hero" ? "hero" : "default"}
           suggestions={suggestions}
+          showNavigation={variant !== "hero"}
         />
         <div className="new-tab__chips">
           {quickLinks.map(link => (

@@ -6,7 +6,9 @@ import { contextBridge, ipcRenderer } from "electron";
  */
 contextBridge.exposeInMainWorld("electronAPI", {
   getEnv: (key: string) => ipcRenderer.invoke("get-env", key),
-  // Add more APIs as needed, e.g. for storage, AI, etc.
+  readSession: () => ipcRenderer.invoke("session:read"),
+  writeSession: (snapshot: string) => ipcRenderer.invoke("session:write", snapshot),
+  clearSession: () => ipcRenderer.invoke("session:clear"),
 });
 
 // TypeScript: declare the API for the renderer
@@ -14,7 +16,9 @@ declare global {
   interface Window {
     electronAPI: {
       getEnv: (key: string) => Promise<string | undefined>;
-      // Extend with more methods as needed
+      readSession: () => Promise<string | null>;
+      writeSession: (snapshot: string) => Promise<void>;
+      clearSession: () => Promise<void>;
     };
   }
 }

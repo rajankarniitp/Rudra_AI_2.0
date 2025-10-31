@@ -5,6 +5,7 @@ import PageView from "./components/PageView";
 import NewTabPage, { quickLinks as newTabQuickLinks } from "./components/NewTabPage";
 import SidebarChat from "./components/SidebarChat";
 import SummaryCard from "./components/SummaryCard";
+import SettingsPanel from "./components/SettingsPanel";
 import {
   summarizePagePrompt,
   translatePagePrompt,
@@ -13,55 +14,41 @@ import {
 } from "./ai/prompts";
 import { callAI } from "./ai/aiAdapter";
 import { saveSummary } from "./utils/storage";
-
-/**
- * Main App component.
- * Sets up the layout: address bar, tab manager, page view, and AI sidebar.
- * Uses CSS variables for dark mode and responsive design.
- */
-const DEFAULT_HOME = "https://www.perplexity.ai/";
+import { useSessionSelector, useSessionActions, useActiveTab } from "./state/session/store";
 
 import { getWebviewSelectedText } from "./utils/context";
 
-interface Tab {
-  id: string;
-  title: string;
-  url: string;
-  addressValue: string;
-  addressInput: string;
-  pageTitle: string;
-  pageText: string;
-  chatHistory: { role: "user" | "ai"; content: string }[];
-  assistantOpen: boolean;
-  active: boolean;
-}
+const GROUP_COLORS = ["#5A8DEE", "#8B5CF6", "#10B981", "#F97316", "#F59E0B", "#EC4899", "#38BDF8"];
 
 const App: React.FC = () => {
-  // MVP: single tab, but structure for multi-tab
-  const [tabs, setTabs] = useState<Tab[]>([
-    {
-      id: "tab-1",
-      title: "New Tab",
-      url: "about:blank",
-      addressValue: "about:blank",
-      addressInput: "",
-      pageTitle: "New Tab",
-      pageText: "",
-      chatHistory: [],
-      assistantOpen: false,
-      active: true
-    }
-  ]);
-  const [currentTabId, setCurrentTabId] = useState("tab-1");
+  const tabs = useSessionSelector(state => state.tabs);
+  const suggestionHistory = useSessionSelector(state => state.suggestionHistory);
+  const settings = useSessionSelector(state => state.settings);
+  const tabGroups = useSessionSelector(state => state.tabGroups);
+  const currentTab = useActiveTab();
+  const {
+    addTab,
+    closeTab,
+    setActiveTab,
+    patchTab,
+    setAssistantOpen,
+    appendChatMessage,
+    recordSuggestion,
+    reorderTabs,
+    assignGroup,
+    upsertGroup,
+    deleteGroup,
+    toggleGroupCollapse,
+    updateSettings
+  } = useSessionActions();
   const webviewRef = React.useRef<any>(null);
-
-  // Get current tab URL
-  const currentTab = tabs.find(t => t.id === currentTabId);
+  const groupColorIndexRef = React.useRef(0);
 
   // Navigation state for back/forward buttons
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [webviewReady, setWebviewReady] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // Reset webviewReady on tab/url change
   useEffect(() => {
@@ -111,50 +98,149 @@ const App: React.FC = () => {
     }
   }
 
+  const buildSearchUrl = React.useCallback(
+    (query: string) => {
+      const encoded = encodeURIComponent(query);
+      switch (settings.defaultSearchEngine) {
+        case "duckduckgo":
+          return `https://duckduckgo.com/?q=${encoded}`;
+        case "bing":
+          return `https://www.bing.com/search?q=${encoded}`;
+        case "perplexity":
+          return `https://www.perplexity.ai/search?q=${encoded}`;
+        case "google":
+        default:
+          return `https://www.google.com/search?q=${encoded}`;
+      }
+    },
+    [settings.defaultSearchEngine]
+  );
+
   const handleNavigate = (input: string) => {
     const trimmedInput = input.trim();
     if (trimmedInput.length > 0) {
-      setRecentSuggestions(prev => {
-        const normalized = trimmedInput.toLowerCase();
-        const deduped = [trimmedInput, ...prev.filter(entry => entry.toLowerCase() !== normalized)];
-        return deduped.slice(0, 12);
-      });
+      recordSuggestion(trimmedInput);
     }
+    if (!currentTab) return;
     let url = input;
     if (!isValidUrl(input)) {
-      // Redirect to Google search for MVP
-      url = `https://www.google.com/search?q=${encodeURIComponent(input)}`;
+      url = buildSearchUrl(trimmedInput);
     }
-    setTabs(tabs =>
-      tabs.map(tab =>
-        tab.id === currentTabId
-          ? { ...tab, url, addressValue: url, addressInput: url, title: input }
-          : tab
-      )
-    );
+    patchTab(currentTab.id, {
+      url,
+      addressValue: url,
+      addressInput: url,
+      title: input,
+      pageTitle: input || currentTab.pageTitle,
+      pageText: ""
+    });
   };
 
   const handleTabSelect = (id: string) => {
-    setCurrentTabId(id);
+    setActiveTab(id);
   };
 
-  // For MVP, no tab close/add logic yet
+  const handleTabAdd = () => {
+    addTab();
+  };
 
-  // Per-tab chat history and assistant open state
-  const chatHistory = currentTab?.chatHistory || [];
-  const assistantOpen = currentTab?.assistantOpen || false;
+  const handleTabClose = (id: string) => {
+    const tabCount = tabs.length;
+    if (tabCount <= 1) return;
+    const threshold = settings?.confirmCloseThreshold ?? 12;
+    if (tabCount > threshold) {
+      const confirmed = window.confirm(
+        `You have ${tabCount} tabs open. Are you sure you want to close this tab?`
+      );
+      if (!confirmed) return;
+    }
+    closeTab(id);
+  };
+
+  const handleTabPinToggle = (id: string, pinned: boolean) => {
+    const pinnedIds: string[] = [];
+    const regularIds: string[] = [];
+    tabs.forEach(tab => {
+      if (tab.id === id) {
+        return;
+      }
+      if (tab.status === "pinned") {
+        pinnedIds.push(tab.id);
+      } else {
+        regularIds.push(tab.id);
+      }
+    });
+    if (pinned) {
+      pinnedIds.push(id);
+    } else {
+      regularIds.push(id);
+    }
+    reorderTabs(pinnedIds, regularIds);
+    if (pinned) {
+      assignGroup(id, null);
+    }
+  };
+
+  const handleTabReorder = (pinnedIds: string[], regularIds: string[]) => {
+    reorderTabs(pinnedIds, regularIds);
+  };
+
+  const handleTabAssignGroup = (tabId: string, groupId: string | null) => {
+    assignGroup(tabId, groupId);
+  };
+
+  const handleGroupCreate = () => {
+    const palette = GROUP_COLORS;
+    const color = palette[groupColorIndexRef.current % palette.length];
+    groupColorIndexRef.current += 1;
+    const groupCount = Object.keys(tabGroups).length + 1;
+    const newId = `group-${Date.now()}`;
+    upsertGroup({
+      id: newId,
+      title: `Group ${groupCount}`,
+      color,
+      collapsed: false
+    });
+  };
+
+  const handleGroupToggle = (groupId: string) => {
+    toggleGroupCollapse(groupId);
+  };
+
+  const handleGroupRename = (groupId: string) => {
+    const existing = tabGroups[groupId];
+    if (!existing) return;
+    const nextTitle = window.prompt("Rename group", existing.title || "Group");
+    if (!nextTitle) return;
+    const trimmed = nextTitle.trim();
+    if (!trimmed) return;
+    upsertGroup({
+      ...existing,
+      id: groupId,
+      title: trimmed
+    });
+  };
+
+  const handleGroupDelete = (groupId: string) => {
+    const existing = tabGroups[groupId];
+    if (!existing) return;
+    const confirmed = window.confirm(`Remove "${existing.title || "Group"}"? Tabs will be ungrouped.`);
+    if (!confirmed) return;
+    deleteGroup(groupId);
+  };
 
   // Per-tab chat state and assistant open state
   const [aiLoading, setAiLoading] = useState(false);
   const [provider, setProvider] = useState<"openai" | "gemini">("openai");
-  const [recentSuggestions, setRecentSuggestions] = useState<string[]>([]);
   const latestAiController = React.useRef<AbortController | null>(null);
+  const chatHistory = currentTab?.chatHistory || [];
+  const assistantOpen = currentTab?.assistantOpen || false;
 
   const suggestionPool = React.useMemo(() => {
     const quickLinkQueries = newTabQuickLinks.map(link => link.query);
     const combined: string[] = [];
     const seen = new Set<string>();
-    [...recentSuggestions, ...quickLinkQueries].forEach(item => {
+    [...suggestionHistory, ...quickLinkQueries].forEach(item => {
       const normalized = item.trim();
       const key = normalized.toLowerCase();
       if (normalized && !seen.has(key)) {
@@ -163,7 +249,7 @@ const App: React.FC = () => {
       }
     });
     return combined;
-  }, [recentSuggestions]);
+  }, [suggestionHistory]);
 
   // AI sidebar action handler
   const handleAIAction = async (
@@ -178,6 +264,11 @@ const App: React.FC = () => {
     let prompt = "";
     let userMsg = "";
     if (!currentTab) return;
+    const targetTabMeta = {
+      id: currentTab.id,
+      url: currentTab.url,
+      pageTitle: currentTab.pageTitle
+    };
     if (action === "custom") {
       // Always include tab context in freeform chat
       prompt = `Given the following page context:\nTitle: ${currentTab.pageTitle}\nURL: ${currentTab.url}\nText: ${currentTab.pageText?.slice(0, 2000) || ""}\n\nAnswer the user's question:\n${payload?.text || ""}`;
@@ -213,13 +304,7 @@ const App: React.FC = () => {
       latestAiController.current = null;
     }
 
-    setTabs(tabs =>
-      tabs.map(tab =>
-        tab.id === currentTabId
-          ? { ...tab, chatHistory: [...(tab.chatHistory || []), { role: "user", content: userMsg }] }
-          : tab
-      )
-    );
+    appendChatMessage(targetTabMeta.id, { role: "user", content: userMsg });
     setAiLoading(true);
     const controller = new AbortController();
     latestAiController.current = controller;
@@ -235,18 +320,12 @@ const App: React.FC = () => {
       if (controller.signal.aborted) {
         return;
       }
-      setTabs(tabs =>
-        tabs.map(tab =>
-          tab.id === currentTabId
-            ? { ...tab, chatHistory: [...(tab.chatHistory || []), { role: "ai", content: aiRes.text }] }
-            : tab
-        )
-      );
+      appendChatMessage(targetTabMeta.id, { role: "ai", content: aiRes.text });
       // Save summary to local storage if action is summarize
       if (action === "summarize") {
         await saveSummary({
-          url: currentTab.url,
-          title: currentTab.pageTitle,
+          url: targetTabMeta.url,
+          title: targetTabMeta.pageTitle,
           content: aiRes.text,
           date: Date.now()
         });
@@ -255,13 +334,10 @@ const App: React.FC = () => {
       if (err?.name === "AbortError") {
         return;
       }
-      setTabs(tabs =>
-        tabs.map(tab =>
-          tab.id === currentTabId
-            ? { ...tab, chatHistory: [...(tab.chatHistory || []), { role: "ai", content: "AI error: " + (err.message || "Unknown error") }] }
-            : tab
-        )
-      );
+      appendChatMessage(targetTabMeta.id, {
+        role: "ai",
+        content: "AI error: " + (err?.message || "Unknown error")
+      });
     } finally {
       if (latestAiController.current === controller) {
         latestAiController.current = null;
@@ -276,39 +352,17 @@ const App: React.FC = () => {
         <div className="topbar-row topbar-row--tabs">
           <TabManager
             tabs={tabs}
+            groups={tabGroups}
             onTabSelect={handleTabSelect}
-            onTabAdd={() => {
-              const newId = `tab-${Date.now()}`;
-              setTabs(tabs => [
-                ...tabs.map(tab => ({ ...tab, active: false })),
-                {
-                  id: newId,
-                  title: "New Tab",
-                  url: "about:blank",
-                  addressValue: "about:blank",
-                  addressInput: "",
-                  pageTitle: "New Tab",
-                  pageText: "",
-                  chatHistory: [],
-                  assistantOpen: false,
-                  active: true
-                }
-              ]);
-              setCurrentTabId(newId);
-            }}
-            onTabClose={id => {
-              setTabs(tabs => {
-                const idx = tabs.findIndex(tab => tab.id === id);
-                if (tabs.length === 1) return tabs; // Don't close last tab
-                const newTabs = tabs.filter(tab => tab.id !== id);
-                // If closing current tab, switch to previous or next
-                if (id === currentTabId) {
-                  const nextIdx = idx > 0 ? idx - 1 : 0;
-                  setCurrentTabId(newTabs[nextIdx].id);
-                }
-                return newTabs;
-              });
-            }}
+            onTabAdd={handleTabAdd}
+            onTabClose={handleTabClose}
+            onTabPinToggle={handleTabPinToggle}
+            onTabReorder={handleTabReorder}
+            onTabAssignGroup={handleTabAssignGroup}
+            onGroupCreate={handleGroupCreate}
+            onGroupToggleCollapse={handleGroupToggle}
+            onGroupRename={handleGroupRename}
+            onGroupDelete={handleGroupDelete}
           />
         </div>
         <div className="topbar-row topbar-row--address">
@@ -320,13 +374,8 @@ const App: React.FC = () => {
               value={currentTab?.addressInput || ""}
               onChange={e => {
                 const value = e.target.value;
-                setTabs(tabs =>
-                  tabs.map(tab =>
-                    tab.id === currentTabId
-                      ? { ...tab, addressInput: value }
-                      : tab
-                  )
-                );
+                if (!currentTab) return;
+                patchTab(currentTab.id, { addressInput: value });
               }}
               onBack={() => {
                 if (webviewRef.current && webviewRef.current.canGoBack && webviewRef.current.canGoBack()) {
@@ -347,29 +396,42 @@ const App: React.FC = () => {
               canGoForward={canGoForward}
             />
           </div>
-          <button
-            className={`assistant-toggle ${assistantOpen ? "is-active" : ""}`}
-            onClick={() => {
-              setTabs(tabs =>
-                tabs.map(tab =>
-                  tab.id === currentTabId
-                    ? { ...tab, assistantOpen: !tab.assistantOpen }
-                    : tab
-                )
-              );
-            }}
-            aria-label="Toggle assistant panel"
-          >
-            <span className="assistant-toggle__icon" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 18 18">
-                <path
-                  d="M5 7a4 4 0 118 0v1h1.2a1.8 1.8 0 010 3.6h-0.5A4.5 4.5 0 019 15a4.5 4.5 0 01-4.7-3.4H3.8a1.8 1.8 0 010-3.6H5z"
-                  fill="currentColor"
-                />
-              </svg>
-            </span>
-            <span className="assistant-toggle__label">Assistant</span>
-          </button>
+          <div className="topbar-actions">
+            <button
+              className={`settings-trigger ${settingsOpen ? "is-active" : ""}`}
+              onClick={() => setSettingsOpen(true)}
+              aria-label="Open settings"
+              aria-haspopup="dialog"
+            >
+              <span className="settings-trigger__icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path
+                    d="M8.94 2.25l.5-1.25h-.5a.75.75 0 00-.69.44l-.54 1.22a5.7 5.7 0 00-1.4.58l-1.2-.7a.75.75 0 00-.9.12l-.36.36a.75.75 0 00-.1.9l.68 1.16a5.78 5.78 0 00-.38 1.52l-1.27.53a.75.75 0 00-.45.7v.5c0 .31.18.58.46.7l1.27.53c.08.54.23 1.05.44 1.52l-.7 1.2a.75.75 0 00.1.9l.36.36c.25.25.65.3.96.12l1.16-.68c.47.21.98.36 1.52.44l.53 1.27c.12.28.4.46.7.46h.5a.75.75 0 00.69-.45l.53-1.27a5.76 5.76 0 001.52-.44l1.16.68c.3.18.7.13.95-.12l.36-.36a.75.75 0 00.12-.9l-.68-1.16c.21-.47.36-.98.44-1.52l1.27-.53c.28-.12.46-.4.46-.7v-.5a.75.75 0 00-.45-.69l-1.27-.53a5.7 5.7 0 00-.44-1.52l.68-1.16a.75.75 0 00-.12-.9l-.36-.36a.75.75 0 00-.9-.1l-1.16.68a5.7 5.7 0 00-1.52-.44l-.53-1.27a.75.75 0 00-.69-.45h-.5l.5 1.25-1.06 2.75a2.25 2.25 0 102.12 0L8.94 2.25z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+              <span className="settings-trigger__label">Settings</span>
+            </button>
+            <button
+              className={`assistant-toggle ${assistantOpen ? "is-active" : ""}`}
+              onClick={() => {
+                if (!currentTab) return;
+                setAssistantOpen(currentTab.id, !currentTab.assistantOpen);
+              }}
+              aria-label="Toggle assistant panel"
+            >
+              <span className="assistant-toggle__icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path
+                    d="M5 7a4 4 0 118 0v1h1.2a1.8 1.8 0 010 3.6h-0.5A4.5 4.5 0 019 15a4.5 4.5 0 01-4.7-3.4H3.8a1.8 1.8 0 010-3.6H5z"
+                    fill="currentColor"
+                  />
+                </svg>
+              </span>
+              <span className="assistant-toggle__label">Assistant</span>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -385,37 +447,22 @@ const App: React.FC = () => {
                   onNavigate={handleNavigate}
                   onChange={e => {
                     const value = e.target.value;
-                    setTabs(tabs =>
-                      tabs.map(tab =>
-                        tab.id === currentTabId
-                          ? { ...tab, addressInput: value }
-                          : tab
-                      )
-                    );
+                    if (!currentTab) return;
+                    patchTab(currentTab.id, { addressInput: value });
                   }}
                 />
               ) : (
                 <PageView
                   url={currentTab.url}
                   onTitleChange={title => {
-                    setTabs(tabs =>
-                      tabs.map(tab =>
-                        tab.id === currentTabId
-                          ? { ...tab, pageTitle: title }
-                          : tab
-                      )
-                    );
+                    if (!currentTab) return;
+                    patchTab(currentTab.id, { pageTitle: title, title });
                   }}
                   onDomExtract={text => {
                     const compact = text.replace(/\s+/g, " ").trim();
                     const limited = compact.slice(0, 4000);
-                    setTabs(tabs =>
-                      tabs.map(tab =>
-                        tab.id === currentTabId
-                          ? { ...tab, pageText: limited }
-                          : tab
-                      )
-                    );
+                    if (!currentTab) return;
+                    patchTab(currentTab.id, { pageText: limited });
                   }}
                   webviewRef={webviewRef}
                 />
@@ -432,18 +479,21 @@ const App: React.FC = () => {
               provider={provider}
               onProviderChange={prov => setProvider(prov)}
               onClose={() => {
-                setTabs(tabs =>
-                  tabs.map(tab =>
-                    tab.id === currentTabId
-                      ? { ...tab, assistantOpen: false }
-                      : tab
-                  )
-                );
+                if (currentTab) {
+                  setAssistantOpen(currentTab.id, false);
+                }
               }}
             />
           </aside>
         ) : null}
       </div>
+      {settingsOpen ? (
+        <SettingsPanel
+          settings={settings}
+          onUpdate={updateSettings}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
     </div>
   );
 };

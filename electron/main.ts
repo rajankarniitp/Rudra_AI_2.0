@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, shell, session } from "electron";
 import path from "path";
+import { promises as fs } from "fs";
 import { setupSecurity } from "./security";
 import dotenv from "dotenv";
 
@@ -73,4 +74,42 @@ app.on("activate", () => {
 // IPC handlers (add more as needed)
 ipcMain.handle("get-env", (_, key: string) => {
   return process.env[key];
+});
+
+function getSessionStorePath() {
+  return path.join(app.getPath("userData"), "rudra-session.json");
+}
+
+ipcMain.handle("session:read", async () => {
+  const storePath = getSessionStorePath();
+  try {
+    const data = await fs.readFile(storePath, "utf8");
+    return data;
+  } catch (err: any) {
+    if (err && err.code === "ENOENT") {
+      return null;
+    }
+    console.warn("Failed to read session snapshot:", err);
+    return null;
+  }
+});
+
+ipcMain.handle("session:write", async (_event, snapshot: string) => {
+  const storePath = getSessionStorePath();
+  try {
+    await fs.writeFile(storePath, snapshot, "utf8");
+  } catch (err) {
+    console.warn("Failed to write session snapshot:", err);
+  }
+});
+
+ipcMain.handle("session:clear", async () => {
+  const storePath = getSessionStorePath();
+  try {
+    await fs.unlink(storePath);
+  } catch (err: any) {
+    if (err && err.code !== "ENOENT") {
+      console.warn("Failed to clear session snapshot:", err);
+    }
+  }
 });

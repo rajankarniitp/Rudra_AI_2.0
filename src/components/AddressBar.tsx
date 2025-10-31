@@ -16,6 +16,7 @@ interface AddressBarProps {
   onRefresh?: () => void;
   canGoBack?: boolean;
   canGoForward?: boolean;
+  showNavigation?: boolean;
 }
 
 const SearchIcon: React.FC = () => (
@@ -59,9 +60,23 @@ const ForwardIcon: React.FC = () => (
 );
 
 const RefreshIcon: React.FC = () => (
-  <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
-    <path d="M17 11a6 6 0 1 1-2.1-4.5" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
-    <polyline points="17 5.5 17 11 11 11" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round"/>
+  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+    <path
+      d="M14.6 5.8A6 6 0 1 1 6.4 4.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M11.8 2.2h4v4"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
@@ -75,7 +90,8 @@ const AddressBar: React.FC<AddressBarProps> = ({
   onForward,
   onRefresh,
   canGoBack = true,
-  canGoForward = true
+  canGoForward = true,
+  showNavigation = true
 }) => {
   const [input, setInput] = useState(value);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -251,34 +267,38 @@ const AddressBar: React.FC<AddressBarProps> = ({
   return (
     <div className={`address-shell address-shell--${variant}`}>
       <form className={`address-bar address-bar--${variant}`} onSubmit={handleSubmit} autoComplete="off">
-        <button
-          type="button"
-          className="address-nav-btn"
-          aria-label="Back"
-          onClick={onBack}
-          disabled={!canGoBack}
-          style={{ opacity: canGoBack ? 1 : 0.4 }}
-        >
-          <BackIcon />
-        </button>
-        <button
-          type="button"
-          className="address-nav-btn"
-          aria-label="Forward"
-          onClick={onForward}
-          disabled={!canGoForward}
-          style={{ opacity: canGoForward ? 1 : 0.4 }}
-        >
-          <ForwardIcon />
-        </button>
-        <button
-          type="button"
-          className="address-nav-btn"
-          aria-label="Refresh"
-          onClick={onRefresh}
-        >
-          <RefreshIcon />
-        </button>
+        {showNavigation && (
+          <>
+            <button
+              type="button"
+              className="address-nav-btn"
+              aria-label="Back"
+              onClick={onBack}
+              disabled={!canGoBack}
+              style={{ opacity: canGoBack ? 1 : 0.4 }}
+            >
+              <BackIcon />
+            </button>
+            <button
+              type="button"
+              className="address-nav-btn"
+              aria-label="Forward"
+              onClick={onForward}
+              disabled={!canGoForward}
+              style={{ opacity: canGoForward ? 1 : 0.4 }}
+            >
+              <ForwardIcon />
+            </button>
+            <button
+              type="button"
+              className="address-nav-btn address-nav-btn--refresh"
+              aria-label="Refresh"
+              onClick={onRefresh}
+            >
+              <RefreshIcon />
+            </button>
+          </>
+        )}
         <span className="address-icon">
           <SearchIcon />
         </span>
