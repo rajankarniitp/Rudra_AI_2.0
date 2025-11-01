@@ -124,7 +124,7 @@ body::before {
   width: 26px;
   height: 26px;
   border-radius: 9px;
-  background: rgba(31, 209, 255, 0.12);
+  background: rgba(31, 209, 255, 0.14);
   color: var(--accent);
 }
 
@@ -170,8 +170,11 @@ body::before {
   width: 28px;
   height: 28px;
   border-radius: 10px;
-  background: rgba(31, 209, 255, 0.12);
+  background: rgba(31, 209, 255, 0.15);
   color: var(--accent);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.3px;
 }
 
 .assistant-toggle__label {
@@ -482,6 +485,15 @@ body::before {
   padding: 4px 10px;
   background: rgba(14, 22, 34, 0.4);
   border: 1px dashed rgba(31, 209, 255, 0.12);
+}
+
+.tab-group__header--ungrouped::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(31, 209, 255, 0.3);
+  display: inline-block;
 }
 
 .tab-group__badge {

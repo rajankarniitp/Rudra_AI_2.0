@@ -4,8 +4,8 @@ import TabManager from "./components/TabManager";
 import PageView from "./components/PageView";
 import NewTabPage, { quickLinks as newTabQuickLinks } from "./components/NewTabPage";
 import SidebarChat from "./components/SidebarChat";
-import SummaryCard from "./components/SummaryCard";
 import SettingsPanel from "./components/SettingsPanel";
+import SummaryCard from "./components/SummaryCard";
 import {
   summarizePagePrompt,
   translatePagePrompt,
@@ -17,8 +17,6 @@ import { saveSummary } from "./utils/storage";
 import { useSessionSelector, useSessionActions, useActiveTab } from "./state/session/store";
 
 import { getWebviewSelectedText } from "./utils/context";
-
-const GROUP_COLORS = ["#5A8DEE", "#8B5CF6", "#10B981", "#F97316", "#F59E0B", "#EC4899", "#38BDF8"];
 
 const App: React.FC = () => {
   const tabs = useSessionSelector(state => state.tabs);
@@ -36,13 +34,10 @@ const App: React.FC = () => {
     recordSuggestion,
     reorderTabs,
     assignGroup,
-    upsertGroup,
     deleteGroup,
-    toggleGroupCollapse,
     updateSettings
   } = useSessionActions();
   const webviewRef = React.useRef<any>(null);
-  const groupColorIndexRef = React.useRef(0);
 
   // Navigation state for back/forward buttons
   const [canGoBack, setCanGoBack] = useState(false);
@@ -87,6 +82,21 @@ const App: React.FC = () => {
       webview.removeEventListener("dom-ready", handleDomReady);
     };
   }, [currentTab?.url, webviewReady]);
+
+  React.useEffect(() => {
+    const ids = Object.keys(tabGroups || {});
+    if (ids.length > 0) {
+      ids.forEach(id => deleteGroup(id));
+    }
+  }, [tabGroups, deleteGroup]);
+
+  React.useEffect(() => {
+    tabs.forEach(tab => {
+      if (tab.groupId) {
+        assignGroup(tab.id, null);
+      }
+    });
+  }, [tabs, assignGroup]);
 
   // Hybrid search/navigation logic
   function isValidUrl(input: string) {
@@ -176,57 +186,11 @@ const App: React.FC = () => {
       regularIds.push(id);
     }
     reorderTabs(pinnedIds, regularIds);
-    if (pinned) {
-      assignGroup(id, null);
-    }
+    assignGroup(id, null);
   };
 
   const handleTabReorder = (pinnedIds: string[], regularIds: string[]) => {
     reorderTabs(pinnedIds, regularIds);
-  };
-
-  const handleTabAssignGroup = (tabId: string, groupId: string | null) => {
-    assignGroup(tabId, groupId);
-  };
-
-  const handleGroupCreate = () => {
-    const palette = GROUP_COLORS;
-    const color = palette[groupColorIndexRef.current % palette.length];
-    groupColorIndexRef.current += 1;
-    const groupCount = Object.keys(tabGroups).length + 1;
-    const newId = `group-${Date.now()}`;
-    upsertGroup({
-      id: newId,
-      title: `Group ${groupCount}`,
-      color,
-      collapsed: false
-    });
-  };
-
-  const handleGroupToggle = (groupId: string) => {
-    toggleGroupCollapse(groupId);
-  };
-
-  const handleGroupRename = (groupId: string) => {
-    const existing = tabGroups[groupId];
-    if (!existing) return;
-    const nextTitle = window.prompt("Rename group", existing.title || "Group");
-    if (!nextTitle) return;
-    const trimmed = nextTitle.trim();
-    if (!trimmed) return;
-    upsertGroup({
-      ...existing,
-      id: groupId,
-      title: trimmed
-    });
-  };
-
-  const handleGroupDelete = (groupId: string) => {
-    const existing = tabGroups[groupId];
-    if (!existing) return;
-    const confirmed = window.confirm(`Remove "${existing.title || "Group"}"? Tabs will be ungrouped.`);
-    if (!confirmed) return;
-    deleteGroup(groupId);
   };
 
   // Per-tab chat state and assistant open state
@@ -352,17 +316,11 @@ const App: React.FC = () => {
         <div className="topbar-row topbar-row--tabs">
           <TabManager
             tabs={tabs}
-            groups={tabGroups}
             onTabSelect={handleTabSelect}
             onTabAdd={handleTabAdd}
             onTabClose={handleTabClose}
             onTabPinToggle={handleTabPinToggle}
             onTabReorder={handleTabReorder}
-            onTabAssignGroup={handleTabAssignGroup}
-            onGroupCreate={handleGroupCreate}
-            onGroupToggleCollapse={handleGroupToggle}
-            onGroupRename={handleGroupRename}
-            onGroupDelete={handleGroupDelete}
           />
         </div>
         <div className="topbar-row topbar-row--address">
@@ -404,9 +362,10 @@ const App: React.FC = () => {
               aria-haspopup="dialog"
             >
               <span className="settings-trigger__icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 18 18">
+                <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+                  <circle cx="9" cy="9" r="2.3" fill="currentColor" />
                   <path
-                    d="M8.94 2.25l.5-1.25h-.5a.75.75 0 00-.69.44l-.54 1.22a5.7 5.7 0 00-1.4.58l-1.2-.7a.75.75 0 00-.9.12l-.36.36a.75.75 0 00-.1.9l.68 1.16a5.78 5.78 0 00-.38 1.52l-1.27.53a.75.75 0 00-.45.7v.5c0 .31.18.58.46.7l1.27.53c.08.54.23 1.05.44 1.52l-.7 1.2a.75.75 0 00.1.9l.36.36c.25.25.65.3.96.12l1.16-.68c.47.21.98.36 1.52.44l.53 1.27c.12.28.4.46.7.46h.5a.75.75 0 00.69-.45l.53-1.27a5.76 5.76 0 001.52-.44l1.16.68c.3.18.7.13.95-.12l.36-.36a.75.75 0 00.12-.9l-.68-1.16c.21-.47.36-.98.44-1.52l1.27-.53c.28-.12.46-.4.46-.7v-.5a.75.75 0 00-.45-.69l-1.27-.53a5.7 5.7 0 00-.44-1.52l.68-1.16a.75.75 0 00-.12-.9l-.36-.36a.75.75 0 00-.9-.1l-1.16.68a5.7 5.7 0 00-1.52-.44l-.53-1.27a.75.75 0 00-.69-.45h-.5l.5 1.25-1.06 2.75a2.25 2.25 0 102.12 0L8.94 2.25z"
+                    d="M15.3 9.7a6.4 6.4 0 0 0 0-1.4l1.5-1.2a.5.5 0 0 0 .1-.7l-1.4-2.4a.5.5 0 0 0-.6-.2l-1.8.7a6.3 6.3 0 0 0-1.2-.7l-.3-1.9a.5.5 0 0 0-.5-.4H7.9a.5.5 0 0 0-.5.4l-.3 1.9a6.3 6.3 0 0 0-1.2.7l-1.8-.7a.5.5 0 0 0-.6.2L2.1 6.4a.5.5 0 0 0 .1.7l1.5 1.2a6.4 6.4 0 0 0 0 1.4l-1.5 1.2a.5.5 0 0 0-.1.7l1.4 2.4a.5.5 0 0 0 .6.2l1.8-.7c.4.3.8.5 1.2.7l.3 1.9a.5.5 0 0 0 .5.4h2.9a.5.5 0 0 0 .5-.4l.3-1.9c.4-.2.8-.4 1.2-.7l1.8.7a.5.5 0 0 0 .6-.2l1.4-2.4a.5.5 0 0 0-.1-.7l-1.5-1.2z"
                     fill="currentColor"
                   />
                 </svg>
@@ -421,14 +380,7 @@ const App: React.FC = () => {
               }}
               aria-label="Toggle assistant panel"
             >
-              <span className="assistant-toggle__icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <path
-                    d="M5 7a4 4 0 118 0v1h1.2a1.8 1.8 0 010 3.6h-0.5A4.5 4.5 0 019 15a4.5 4.5 0 01-4.7-3.4H3.8a1.8 1.8 0 010-3.6H5z"
-                    fill="currentColor"
-                  />
-                </svg>
-              </span>
+              <span className="assistant-toggle__icon" aria-hidden="true">R</span>
               <span className="assistant-toggle__label">Assistant</span>
             </button>
           </div>

@@ -1,5 +1,5 @@
 import React from "react";
-import { TabGroup, TabStatus } from "../state/session/types";
+import { TabStatus } from "../state/session/types";
 
 interface TabSummary {
   id: string;
@@ -7,27 +7,16 @@ interface TabSummary {
   url: string;
   active: boolean;
   status: TabStatus;
-  groupId?: string | null;
 }
 
 interface TabManagerProps {
   tabs: TabSummary[];
-  groups: Record<string, TabGroup>;
   onTabSelect: (id: string) => void;
   onTabClose?: (id: string) => void;
   onTabAdd?: () => void;
   onTabPinToggle?: (id: string, pinned: boolean) => void;
   onTabReorder?: (pinnedIds: string[], regularIds: string[]) => void;
-  onTabAssignGroup?: (tabId: string, groupId: string | null) => void;
-  onGroupCreate?: () => void;
-  onGroupToggleCollapse?: (groupId: string) => void;
-  onGroupRename?: (groupId: string) => void;
-  onGroupDelete?: (groupId: string) => void;
 }
-
-type SectionType = "pinned" | "regular";
-
-const DEFAULT_GROUP_COLOR = "#5A8DEE";
 
 const PinIcon: React.FC<{ filled?: boolean }> = ({ filled }) => (
   <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -37,20 +26,6 @@ const PinIcon: React.FC<{ filled?: boolean }> = ({ filled }) => (
       stroke="currentColor"
       strokeWidth={filled ? 0 : 1.2}
       strokeLinejoin="round"
-    />
-  </svg>
-);
-
-const ChevronIcon: React.FC<{ collapsed: boolean }> = ({ collapsed }) => (
-  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
-    <path
-      d="M4.2 5.2L7 8l2.8-2.8"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      transform={collapsed ? "rotate(-90 7 7)" : undefined}
     />
   </svg>
 );
@@ -73,63 +48,18 @@ const reorderIds = (ids: string[], draggedId: string, targetId: string | null, b
 
 const TabManager: React.FC<TabManagerProps> = ({
   tabs,
-  groups,
   onTabSelect,
   onTabClose,
   onTabAdd,
   onTabPinToggle,
   onTabReorder,
-  onTabAssignGroup,
-  onGroupCreate,
-  onGroupToggleCollapse,
-  onGroupRename,
-  onGroupDelete,
 }) => {
   const draggedIdRef = React.useRef<string | null>(null);
-
   const pinnedTabs = React.useMemo(() => tabs.filter(tab => tab.status === "pinned"), [tabs]);
   const regularTabs = React.useMemo(() => tabs.filter(tab => tab.status !== "pinned"), [tabs]);
-
   const pinnedIds = React.useMemo(() => pinnedTabs.map(tab => tab.id), [pinnedTabs]);
   const regularIds = React.useMemo(() => regularTabs.map(tab => tab.id), [regularTabs]);
-
-  const tabGroupMap = React.useMemo(() => {
-    const map = new Map<string, string | null>();
-    tabs.forEach(tab => {
-      map.set(tab.id, tab.groupId ?? null);
-    });
-    return map;
-  }, [tabs]);
-
-  const grouping = React.useMemo(() => {
-    const grouped = new Map<string, TabSummary[]>();
-    const order: string[] = [];
-    const ungrouped: TabSummary[] = [];
-
-    regularTabs.forEach(tab => {
-      const groupId = tab.groupId && groups[tab.groupId] ? tab.groupId : null;
-      if (groupId) {
-        if (!grouped.has(groupId)) {
-          grouped.set(groupId, []);
-          order.push(groupId);
-        }
-        grouped.get(groupId)!.push(tab);
-      } else {
-        ungrouped.push(tab);
-      }
-    });
-
-    Object.keys(groups).forEach(groupId => {
-      if (!order.includes(groupId)) {
-        order.push(groupId);
-      }
-      if (!grouped.has(groupId)) {
-        grouped.set(groupId, []);
-      }
-    });
-
-    return { grouped, order, ungrouped };
-  }, [regularTabs, groups]);
+  const totalTabs = tabs.length;
 
   const commitReorder = React.useCallback(
     (nextPinned: string[], nextRegular: string[]) => {
@@ -165,9 +95,8 @@ const TabManager: React.FC<TabManagerProps> = ({
 
   const handleDropOnTab = (
     event: React.DragEvent<HTMLButtonElement>,
-    section: SectionType,
-    targetId: string,
-    targetGroupId: string | null
+    section: "pinned" | "regular",
+    targetId: string
   ) => {
     event.preventDefault();
     const draggedId = readDraggedId(event);
@@ -181,62 +110,29 @@ const TabManager: React.FC<TabManagerProps> = ({
     if (section === "pinned") {
       const nextPinned = reorderIds(currentPinned, draggedId, targetId, before);
       commitReorder(nextPinned, currentRegular);
-      if (onTabAssignGroup && tabGroupMap.get(draggedId) !== null) {
-        onTabAssignGroup(draggedId, null);
-      }
-      return;
-    }
-
-    const nextRegular = reorderIds(currentRegular, draggedId, targetId, before);
-    commitReorder(currentPinned, nextRegular);
-
-    const desiredGroup = targetGroupId ?? null;
-    if (onTabAssignGroup && tabGroupMap.get(draggedId) !== desiredGroup) {
-      onTabAssignGroup(draggedId, desiredGroup);
+    } else {
+      const nextRegular = reorderIds(currentRegular, draggedId, targetId, before);
+      commitReorder(currentPinned, nextRegular);
     }
   };
 
-  const handleDropOnSection = (event: React.DragEvent<HTMLDivElement>, section: SectionType) => {
+  const handleDropOnSection = (event: React.DragEvent<HTMLDivElement>, section: "pinned" | "regular") => {
     event.preventDefault();
     const draggedId = readDraggedId(event);
     if (!draggedId) return;
-
     const currentPinned = pinnedIds.filter(id => id !== draggedId);
     const currentRegular = regularIds.filter(id => id !== draggedId);
 
     if (section === "pinned") {
       const nextPinned = reorderIds(currentPinned, draggedId, null, true);
       commitReorder(nextPinned, currentRegular);
-      if (onTabAssignGroup && tabGroupMap.get(draggedId) !== null) {
-        onTabAssignGroup(draggedId, null);
-      }
     } else {
       const nextRegular = reorderIds(currentRegular, draggedId, null, true);
       commitReorder(currentPinned, nextRegular);
-      if (onTabAssignGroup && tabGroupMap.get(draggedId) !== null) {
-        onTabAssignGroup(draggedId, null);
-      }
     }
   };
 
-  const handleDropOnGroup = (event: React.DragEvent<HTMLDivElement>, groupId: string) => {
-    event.preventDefault();
-    const draggedId = readDraggedId(event);
-    if (!draggedId) return;
-
-    const currentPinned = pinnedIds.filter(id => id !== draggedId);
-    const currentRegular = regularIds.filter(id => id !== draggedId);
-    const nextRegular = reorderIds(currentRegular, draggedId, null, true);
-    commitReorder(currentPinned, nextRegular);
-
-    if (onTabAssignGroup && tabGroupMap.get(draggedId) !== groupId) {
-      onTabAssignGroup(draggedId, groupId);
-    }
-  };
-
-  const totalTabs = tabs.length;
-
-  const renderTab = (tab: TabSummary, section: SectionType, groupId: string | null) => {
+  const renderTab = (tab: TabSummary, section: "pinned" | "regular") => {
     const pinned = tab.status === "pinned";
     return (
       <button
@@ -248,7 +144,7 @@ const TabManager: React.FC<TabManagerProps> = ({
         onDragStart={event => handleDragStart(event, tab.id)}
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
-        onDrop={event => handleDropOnTab(event, section, tab.id, groupId)}
+        onDrop={event => handleDropOnTab(event, section, tab.id)}
       >
         <span className="tab-chip__indicator" aria-hidden="true" />
         <span className="tab-chip__label">{tab.title || tab.url || "New tab"}</span>
@@ -299,130 +195,32 @@ const TabManager: React.FC<TabManagerProps> = ({
     );
   };
 
-  const renderGroup = (groupId: string, members: TabSummary[]) => {
-    const group = groups[groupId];
-    const collapsed = group?.collapsed ?? false;
-    const color = group?.color || DEFAULT_GROUP_COLOR;
-    const title = group?.title || "Group";
-
-    return (
-      <div className="tab-group" key={groupId}>
-        <div
-          className="tab-group__header"
-          onDragOver={handleDragOver}
-          onDrop={event => handleDropOnGroup(event, groupId)}
-        >
-          <button
-            type="button"
-            className="tab-group__toggle"
-            onClick={() => onGroupToggleCollapse?.(groupId)}
-            aria-label={collapsed ? "Expand group" : "Collapse group"}
-            aria-expanded={!collapsed}
-          >
-            <ChevronIcon collapsed={collapsed} />
-          </button>
-          <span className="tab-group__badge" style={{ backgroundColor: color }} aria-hidden="true" />
-          <span className="tab-group__title">{title}</span>
-          <div className="tab-group__actions">
-            {onGroupRename && (
-              <button
-                type="button"
-                className="tab-group__action"
-                onClick={() => onGroupRename(groupId)}
-              >
-                Rename
-              </button>
-            )}
-            {onGroupDelete && (
-              <button
-                type="button"
-                className="tab-group__action tab-group__action--danger"
-                onClick={() => onGroupDelete(groupId)}
-              >
-                Remove
-              </button>
-            )}
-          </div>
-        </div>
-        {!collapsed && (
-          <div className="tab-group__tabs">
-            {members.map(member => renderTab(member, "regular", groupId))}
-            {members.length === 0 ? (
-              <div className="tab-group__empty">Drag tabs here</div>
-            ) : null}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderUngrouped = () => {
-    if (grouping.ungrouped.length === 0) {
-      return null;
-    }
-    return (
-      <div className="tab-group tab-group--ungrouped" key="ungrouped">
-        <div
-          className="tab-group__header tab-group__header--ungrouped"
-          onDragOver={handleDragOver}
-          onDrop={event => handleDropOnSection(event, "regular")}
-        >
-          <span className="tab-group__title">Ungrouped</span>
-        </div>
-        <div className="tab-group__tabs">
-          {grouping.ungrouped.map(member => renderTab(member, "regular", null))}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <nav className="tab-strip">
       <div className="tab-strip__rail">
-        {pinnedTabs.length > 0 ? (
-          <div
-            className="tab-strip__section tab-strip__section--pinned"
-            onDragOver={handleDragOver}
-            onDrop={event => handleDropOnSection(event, "pinned")}
+        <div
+          className="tab-strip__section tab-strip__section--pinned"
+          onDragOver={handleDragOver}
+          onDrop={event => handleDropOnSection(event, "pinned")}
+        >
+          {pinnedTabs.map(tab => renderTab(tab, "pinned"))}
+        </div>
+        {pinnedTabs.length > 0 ? <div className="tab-strip__divider" aria-hidden="true" /> : null}
+        <div
+          className="tab-strip__section tab-strip__section--regular"
+          onDragOver={handleDragOver}
+          onDrop={event => handleDropOnSection(event, "regular")}
+        >
+          {regularTabs.map(tab => renderTab(tab, "regular"))}
+          <button
+            type="button"
+            className="tab-chip tab-chip--ghost"
+            onClick={onTabAdd}
+            aria-label="Open a new tab"
           >
-            {pinnedTabs.map(tab => renderTab(tab, "pinned", null))}
-          </div>
-        ) : (
-          <div
-            className="tab-strip__section tab-strip__section--pinned tab-strip__section--empty"
-            onDragOver={handleDragOver}
-            onDrop={event => handleDropOnSection(event, "pinned")}
-            aria-hidden="true"
-          />
-        )}
-        {pinnedTabs.length > 0 ? <div className="tab-strip__divider" role="separator" aria-hidden="true" /> : null}
-        <div className="tab-strip__section tab-strip__section--regular">
-          <div className="tab-group-collection">
-            {grouping.order.map(groupId => renderGroup(groupId, grouping.grouped.get(groupId) || []))}
-            {renderUngrouped()}
-          </div>
-          <div className="tab-strip__actions">
-            {onGroupCreate ? (
-              <button
-                type="button"
-                className="tab-chip tab-chip--ghost tab-chip--group"
-                onClick={onGroupCreate}
-                aria-label="Create a new tab group"
-              >
-                <span className="tab-chip__indicator" aria-hidden="true" />
-                <span className="tab-chip__label">New group</span>
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="tab-chip tab-chip--ghost"
-              onClick={onTabAdd}
-              aria-label="Open a new tab"
-            >
-              <span className="tab-chip__indicator" aria-hidden="true" />
-              <span className="tab-chip__label">New tab</span>
-            </button>
-          </div>
+            <span className="tab-chip__indicator" aria-hidden="true" />
+            <span className="tab-chip__label">New tab</span>
+          </button>
         </div>
       </div>
     </nav>

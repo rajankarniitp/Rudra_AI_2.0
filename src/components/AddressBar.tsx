@@ -60,22 +60,10 @@ const ForwardIcon: React.FC = () => (
 );
 
 const RefreshIcon: React.FC = () => (
-  <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+  <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true" focusable="false">
     <path
-      d="M14.6 5.8A6 6 0 1 1 6.4 4.5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M11.8 2.2h4v4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      d="M11 3.5a7.5 7.5 0 1 0 7.2 6h-1.9a5.6 5.6 0 1 1-1.6-3.8l-2 2h4.8V2l-1.9 1.9A7.5 7.5 0 0 0 11 3.5z"
+      fill="currentColor"
     />
   </svg>
 );
