@@ -17,6 +17,14 @@ interface AddressBarProps {
   canGoBack?: boolean;
   canGoForward?: boolean;
   showNavigation?: boolean;
+  onVoiceSearch?: () => void;
+  onBookmark?: () => void;
+  onCopyLink?: () => void;
+  onSummarize?: () => void;
+  bookmarked?: boolean;
+  disableSummarize?: boolean;
+  disableBookmark?: boolean;
+  disableCopy?: boolean;
 }
 
 const SearchIcon: React.FC = () => (
@@ -68,6 +76,60 @@ const RefreshIcon: React.FC = () => (
   </svg>
 );
 
+const VoiceIcon: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+    <rect x="7" y="4" width="4" height="8" rx="2" fill="currentColor" />
+    <path
+      d="M4.5 8.5v1a4.5 4.5 0 009 0v-1"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.4"
+      strokeLinecap="round"
+    />
+    <path d="M9 14v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    <path d="M6.8 16h4.4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+  </svg>
+);
+
+const BookmarkIcon: React.FC<{ filled?: boolean }> = ({ filled }) => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+    <path
+      d="M5 3.5A1.5 1.5 0 016.5 2h5A1.5 1.5 0 0113 3.5v12l-4.5-2.7L4 15.5v-12z"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const CopyIcon: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+    <rect x="6" y="5" width="8" height="10" rx="1.6" fill="none" stroke="currentColor" strokeWidth="1.3" />
+    <path
+      d="M4 11.4V3.6A1.6 1.6 0 015.6 2h6.8"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.3"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const SparkIcon: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+    <path
+      d="M9 3l1.3 2.8 2.7 1.1-2.7 1.1L9 10.8 7.7 8 5 6.9l2.7-1.1L9 3z"
+      fill="currentColor"
+    />
+    <path
+      d="M12.5 10.6l.9 1.9 1.9.8-1.9.8-.9 1.9-.8-1.9-1.9-.8 1.9-.8.8-1.9z"
+      fill="currentColor"
+      opacity="0.6"
+    />
+  </svg>
+);
+
 const AddressBar: React.FC<AddressBarProps> = ({
   onNavigate,
   value = "",
@@ -79,7 +141,15 @@ const AddressBar: React.FC<AddressBarProps> = ({
   onRefresh,
   canGoBack = true,
   canGoForward = true,
-  showNavigation = true
+  showNavigation = true,
+  onVoiceSearch,
+  onBookmark,
+  onCopyLink,
+  onSummarize,
+  bookmarked = false,
+  disableSummarize = false,
+  disableBookmark = false,
+  disableCopy = false
 }) => {
   const [input, setInput] = useState(value);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -303,9 +373,46 @@ const AddressBar: React.FC<AddressBarProps> = ({
           spellCheck
           autoComplete="off"
         />
-        <button type="submit" className="address-submit" aria-label="Search">
-          <ArrowIcon />
-        </button>
+        <div className="address-actions">
+          {variant === "default" ? (
+            <>
+              {/* Voice search button removed */}
+              <button
+                type="button"
+                className={`address-action-btn ${bookmarked ? "is-active" : ""}`}
+                onClick={onBookmark}
+                aria-label="Bookmark page"
+                title="Bookmark"
+                disabled={disableBookmark || !onBookmark}
+              >
+                <BookmarkIcon filled={bookmarked} />
+              </button>
+              <button
+                type="button"
+                className="address-action-btn"
+                onClick={onCopyLink}
+                aria-label="Copy link"
+                title="Copy link"
+                disabled={disableCopy || !onCopyLink}
+              >
+                <CopyIcon />
+              </button>
+              <button
+                type="button"
+                className="address-action-btn"
+                onClick={onSummarize}
+                aria-label="Summarize page"
+                title="Summarize"
+                disabled={disableSummarize || !onSummarize}
+              >
+                <SparkIcon />
+              </button>
+            </>
+          ) : null}
+          <button type="submit" className="address-submit" aria-label="Search">
+            <ArrowIcon />
+          </button>
+        </div>
       </form>
       {showSuggestions && (
         <div className="address-suggestions">

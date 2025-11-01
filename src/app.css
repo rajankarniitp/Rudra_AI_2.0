@@ -94,6 +94,26 @@ body::before {
   gap: 12px;
 }
 
+.topbar-toast {
+  position: absolute;
+  top: 12px;
+  right: 28px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: rgba(12, 20, 30, 0.92);
+  border: 1px solid rgba(31, 209, 255, 0.15);
+  color: var(--text-primary);
+  box-shadow: 0 10px 26px rgba(6, 12, 20, 0.38);
+  pointer-events: none;
+}
+
+.topbar-toast--error {
+  border-color: rgba(255, 98, 112, 0.35);
+  color: #ff6b81;
+}
+
 .settings-trigger {
   display: inline-flex;
   align-items: center;
@@ -279,6 +299,45 @@ body::before {
 
 .address-bar--hero .address-input {
   font-size: 1.06rem;
+}
+
+.address-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+}
+
+.address-action-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border: 1px solid rgba(31, 209, 255, 0.08);
+  background: rgba(17, 26, 38, 0.72);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #c8d4e4;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.address-action-btn:hover:not(:disabled),
+.address-action-btn:focus:not(:disabled) {
+  background: rgba(33, 55, 77, 0.9);
+  color: var(--accent);
+  border-color: rgba(31, 209, 255, 0.24);
+  outline: none;
+}
+
+.address-action-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.address-action-btn.is-active {
+  background: rgba(31, 209, 255, 0.18);
+  color: var(--accent);
+  border-color: rgba(31, 209, 255, 0.3);
 }
 
 .address-submit {

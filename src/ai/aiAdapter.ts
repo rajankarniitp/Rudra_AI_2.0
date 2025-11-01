@@ -23,29 +23,36 @@ export interface AIResponse {
 }
 
 export async function callAI(payload: CallAIPayload): Promise<AIResponse> {
-  // Prefer OPEN_AI_API_KEY for OpenAI, fallback to AI_API_KEY for both
+  // Determine mode and provider
+  const aiMode = (await window.electronAPI.getEnv("AI_MODE")) || "best";
+  let provider: AIProvider;
+  if (aiMode === "best") {
+    provider = "gemini";
+  } else if (aiMode === "advance") {
+    provider = "openai";
+  } else {
+    // fallback to AI_PROVIDER or default to openai
+    provider = ((await window.electronAPI.getEnv("AI_PROVIDER")) as AIProvider) || "openai";
+  }
+
   const openaiKey = await window.electronAPI.getEnv("OPEN_AI_API_KEY");
-  const aiKey = await window.electronAPI.getEnv("AI_API_KEY");
-  const provider = (await window.electronAPI.getEnv("AI_PROVIDER")) as AIProvider || "openai";
+  const geminiKey = await window.electronAPI.getEnv("GEMINI_API_KEY");
   const geminiModel = (await window.electronAPI.getEnv("GEMINI_MODEL")) || "models/gemini-2.5-pro";
 
-  if (provider === "openai" && openaiKey) {
+  if (provider === "openai") {
+    if (!openaiKey) {
+      throw new Error("OpenAI API key not set. Please check your .env file and restart the app.");
+    }
     console.log("Renderer: Using OPEN_AI_API_KEY:", openaiKey ? "[set]" : "[not set]");
     return callOpenAI(payload, openaiKey);
-  }
-  console.log("Renderer: AI_API_KEY:", aiKey ? "[set]" : "[not set]");
-  console.log("Renderer: OPEN_AI_API_KEY:", openaiKey ? "[set]" : "[not set]");
-  if (!aiKey) {
-    throw new Error("AI API key not set. Please check your .env file and restart the app.");
-  }
-
-  switch (provider) {
-    case "openai":
-      return callOpenAI(payload, aiKey);
-    case "gemini":
-      return callGemini(payload, aiKey, geminiModel);
-    default:
-      throw new Error("Unsupported AI provider: " + provider);
+  } else if (provider === "gemini") {
+    if (!geminiKey) {
+      throw new Error("Gemini API key not set. Please check your .env file and restart the app.");
+    }
+    console.log("Renderer: Using GEMINI_API_KEY:", geminiKey ? "[set]" : "[not set]");
+    return callGemini(payload, geminiKey, geminiModel);
+  } else {
+    throw new Error("Unsupported AI provider: " + provider);
   }
 }
 

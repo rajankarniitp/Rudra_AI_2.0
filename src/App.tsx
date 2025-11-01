@@ -13,7 +13,7 @@ import {
   generateLinkedInPostPrompt
 } from "./ai/prompts";
 import { callAI } from "./ai/aiAdapter";
-import { saveSummary } from "./utils/storage";
+import { saveSummary, saveBookmark, getBookmarks } from "./utils/storage";
 import { useSessionSelector, useSessionActions, useActiveTab } from "./state/session/store";
 
 import { getWebviewSelectedText } from "./utils/context";
@@ -22,7 +22,6 @@ const App: React.FC = () => {
   const tabs = useSessionSelector(state => state.tabs);
   const suggestionHistory = useSessionSelector(state => state.suggestionHistory);
   const settings = useSessionSelector(state => state.settings);
-  const tabGroups = useSessionSelector(state => state.tabGroups);
   const currentTab = useActiveTab();
   const {
     addTab,
@@ -33,10 +32,11 @@ const App: React.FC = () => {
     appendChatMessage,
     recordSuggestion,
     reorderTabs,
-    assignGroup,
-    deleteGroup,
     updateSettings
   } = useSessionActions();
+  const [bookmarkedUrls, setBookmarkedUrls] = useState<Record<string, boolean>>({});
+  const [toolbarNotice, setToolbarNotice] = useState<{ message: string; kind: "success" | "error" } | null>(null);
+  const noticeTimerRef = React.useRef<number | undefined>();
   const webviewRef = React.useRef<any>(null);
 
   // Navigation state for back/forward buttons
@@ -44,6 +44,19 @@ const App: React.FC = () => {
   const [canGoForward, setCanGoForward] = useState(false);
   const [webviewReady, setWebviewReady] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  React.useEffect(() => {
+    getBookmarks()
+      .then(entries => {
+        const map: Record<string, boolean> = {};
+        entries.forEach((entry: any) => {
+          if (entry?.url) {
+            map[entry.url] = true;
+          }
+        });
+        setBookmarkedUrls(map);
+      })
+      .catch(err => console.warn("Unable to load bookmarks", err));
+  }, []);
 
   // Reset webviewReady on tab/url change
   useEffect(() => {
@@ -82,21 +95,6 @@ const App: React.FC = () => {
       webview.removeEventListener("dom-ready", handleDomReady);
     };
   }, [currentTab?.url, webviewReady]);
-
-  React.useEffect(() => {
-    const ids = Object.keys(tabGroups || {});
-    if (ids.length > 0) {
-      ids.forEach(id => deleteGroup(id));
-    }
-  }, [tabGroups, deleteGroup]);
-
-  React.useEffect(() => {
-    tabs.forEach(tab => {
-      if (tab.groupId) {
-        assignGroup(tab.id, null);
-      }
-    });
-  }, [tabs, assignGroup]);
 
   // Hybrid search/navigation logic
   function isValidUrl(input: string) {
@@ -186,12 +184,110 @@ const App: React.FC = () => {
       regularIds.push(id);
     }
     reorderTabs(pinnedIds, regularIds);
-    assignGroup(id, null);
   };
 
   const handleTabReorder = (pinnedIds: string[], regularIds: string[]) => {
     reorderTabs(pinnedIds, regularIds);
   };
+
+  const showNotice = React.useCallback((message: string, kind: "success" | "error" = "success") => {
+    if (noticeTimerRef.current) {
+      window.clearTimeout(noticeTimerRef.current);
+    }
+    setToolbarNotice({ message, kind });
+    noticeTimerRef.current = window.setTimeout(() => {
+      setToolbarNotice(null);
+      noticeTimerRef.current = undefined;
+    }, 2600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (noticeTimerRef.current) {
+        window.clearTimeout(noticeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleBookmark = async () => {
+    if (!currentTab || !currentTab.url || currentTab.url === "about:blank") {
+      showNotice("Nothing to bookmark", "error");
+      return;
+    }
+    try {
+      await saveBookmark({
+        url: currentTab.url,
+        title: currentTab.pageTitle || currentTab.title || currentTab.url,
+        date: Date.now()
+      });
+      setBookmarkedUrls(prev => ({
+        ...prev,
+        [currentTab.url]: true
+      }));
+      showNotice("Saved to bookmarks");
+    } catch (err) {
+      console.warn("Failed to save bookmark", err);
+      showNotice("Bookmark failed", "error");
+    }
+  };
+
+  const handleCopyLink = async () => {
+    if (!currentTab?.url) {
+      showNotice("No link to copy", "error");
+      return;
+    }
+    if (!navigator.clipboard?.writeText) {
+      showNotice("Clipboard unavailable", "error");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(currentTab.url);
+      showNotice("Link copied");
+    } catch (err) {
+      console.warn("Clipboard copy failed:", err);
+      showNotice("Copy failed", "error");
+    }
+  };
+
+  // handleVoiceSearch removed
+  // OpenAI Whisper transcription helper
+  async function transcribeWithWhisper(audioBlob: Blob, mimeType: string = "audio/webm"): Promise<string | null> {
+    // Convert Blob to File for FormData
+    const audioFile = new File([audioBlob], "voice.webm", { type: mimeType });
+    const formData = new FormData();
+    formData.append("file", audioFile);
+    formData.append("model", "whisper-1");
+    formData.append("response_format", "text");
+
+    // Get OpenAI API key from environment
+    let apiKey = "";
+    if (window.electronAPI && window.electronAPI.getEnv) {
+      apiKey = (await window.electronAPI.getEnv("OPEN_AI_API_KEY")) || "";
+    }
+    if (!apiKey) {
+      throw new Error("OpenAI API key not set for Whisper.");
+    }
+
+    const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`
+      },
+      body: formData
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error("Whisper API fetch failed:", {
+        status: res.status,
+        statusText: res.statusText,
+        body: errText
+      });
+      throw new Error("Whisper API error: " + errText);
+    }
+    const transcript = await res.text();
+    console.log("Voice: Whisper API response:", transcript);
+    return transcript.trim() || null;
+  }
 
   // Per-tab chat state and assistant open state
   const [aiLoading, setAiLoading] = useState(false);
@@ -214,6 +310,28 @@ const App: React.FC = () => {
     });
     return combined;
   }, [suggestionHistory]);
+
+  const isCurrentTabBookmarked = React.useMemo(() => {
+    if (!currentTab?.url) return false;
+    return !!bookmarkedUrls[currentTab.url];
+  }, [currentTab?.url, bookmarkedUrls]);
+
+  const ensurePageText = React.useCallback(async () => {
+    if (!currentTab) return "";
+    if (currentTab.pageText) return currentTab.pageText;
+    if (!webviewRef.current) return "";
+    try {
+      const raw = await webviewRef.current.executeJavaScript("document.body.innerText", false);
+      const compact = (raw || "").replace(/\s+/g, " ").trim();
+      if (compact) {
+        patchTab(currentTab.id, { pageText: compact.slice(0, 4000) });
+      }
+      return compact;
+    } catch (err) {
+      console.warn("Failed to extract page text", err);
+      return "";
+    }
+  }, [currentTab, patchTab]);
 
   // AI sidebar action handler
   const handleAIAction = async (
@@ -238,13 +356,19 @@ const App: React.FC = () => {
       prompt = `Given the following page context:\nTitle: ${currentTab.pageTitle}\nURL: ${currentTab.url}\nText: ${currentTab.pageText?.slice(0, 2000) || ""}\n\nAnswer the user's question:\n${payload?.text || ""}`;
       userMsg = payload?.text || "";
     } else {
-      if (!currentTab.pageText) return; // Wait for page text extraction
-
+      let workingText = currentTab.pageText;
+      if (!workingText) {
+        workingText = await ensurePageText();
+        if (!workingText) {
+          showNotice("Page content not ready", "error");
+          return;
+        }
+      }
       if (action === "summarize") {
-        prompt = summarizePagePrompt(currentTab.pageText, currentTab.url, currentTab.pageTitle);
+        prompt = summarizePagePrompt(workingText, currentTab.url, currentTab.pageTitle);
         userMsg = "Summarize this page";
       } else if (action === "translate") {
-        prompt = translatePagePrompt(currentTab.pageText, currentTab.url, currentTab.pageTitle, "en");
+        prompt = translatePagePrompt(workingText, currentTab.url, currentTab.pageTitle, "en");
         userMsg = "Translate this page to English";
       } else if (action === "explain") {
         // Try to get selected text from webview
@@ -253,12 +377,12 @@ const App: React.FC = () => {
           selectedText = await getWebviewSelectedText(webviewRef.current);
         }
         if (!selectedText) {
-          selectedText = currentTab.pageText.slice(0, 300);
+          selectedText = workingText.slice(0, 400);
         }
         prompt = explainSelectedTextPrompt(selectedText, currentTab.url, currentTab.pageTitle);
         userMsg = "Explain selected text";
       } else if (action === "linkedin") {
-        prompt = generateLinkedInPostPrompt(currentTab.pageText, currentTab.url, currentTab.pageTitle);
+        prompt = generateLinkedInPostPrompt(workingText, currentTab.url, currentTab.pageTitle);
         userMsg = "Generate LinkedIn post for this page";
       }
     }
@@ -269,6 +393,9 @@ const App: React.FC = () => {
     }
 
     appendChatMessage(targetTabMeta.id, { role: "user", content: userMsg });
+    if (action === "summarize") {
+      showNotice("Summarizing page...");
+    }
     setAiLoading(true);
     const controller = new AbortController();
     latestAiController.current = controller;
@@ -293,6 +420,7 @@ const App: React.FC = () => {
           content: aiRes.text,
           date: Date.now()
         });
+        showNotice("Summary saved to assistant");
       }
     } catch (err: any) {
       if (err?.name === "AbortError") {
@@ -302,6 +430,9 @@ const App: React.FC = () => {
         role: "ai",
         content: "AI error: " + (err?.message || "Unknown error")
       });
+      if (action === "summarize") {
+        showNotice("Summarization failed", "error");
+      }
     } finally {
       if (latestAiController.current === controller) {
         latestAiController.current = null;
@@ -329,7 +460,7 @@ const App: React.FC = () => {
               variant="default"
               suggestions={suggestionPool}
               onNavigate={handleNavigate}
-              value={currentTab?.addressInput || ""}
+              value={currentTab?.addressInput ?? ""}
               onChange={e => {
                 const value = e.target.value;
                 if (!currentTab) return;
@@ -352,6 +483,14 @@ const App: React.FC = () => {
               }}
               canGoBack={canGoBack}
               canGoForward={canGoForward}
+              // onVoiceSearch removed
+              onBookmark={handleBookmark}
+              onCopyLink={handleCopyLink}
+              onSummarize={() => handleAIAction("summarize")}
+              bookmarked={isCurrentTabBookmarked}
+              disableBookmark={!currentTab?.url || currentTab.url === "about:blank"}
+              disableCopy={!currentTab?.url}
+              disableSummarize={!currentTab?.pageText}
             />
           </div>
           <div className="topbar-actions">
@@ -385,6 +524,9 @@ const App: React.FC = () => {
             </button>
           </div>
         </div>
+        {toolbarNotice ? (
+          <div className={`topbar-toast topbar-toast--${toolbarNotice.kind}`}>{toolbarNotice.message}</div>
+        ) : null}
       </header>
 
       <div className="app-main">
@@ -395,7 +537,7 @@ const App: React.FC = () => {
                 <NewTabPage
                   variant="hero"
                   suggestions={suggestionPool}
-                  value={currentTab.addressInput || ""}
+                  value={(currentTab?.addressInput ?? "") + ""}
                   onNavigate={handleNavigate}
                   onChange={e => {
                     const value = e.target.value;

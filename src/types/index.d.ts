@@ -10,5 +10,7 @@ interface RudraElectronAPI {
 declare global {
   interface Window {
     electronAPI?: RudraElectronAPI;
+    SpeechRecognition?: any;
+    webkitSpeechRecognition?: any;
   }
 }

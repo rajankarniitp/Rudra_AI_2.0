@@ -7,7 +7,7 @@ import AddressBar from "./AddressBar";
  * - Mimics the look of Chrome/Comet new tab page.
  */
 interface NewTabPageProps {
-  value: string;
+  value?: string;
   onNavigate: (input: string) => void;
   onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   variant?: "hero" | "compact";
