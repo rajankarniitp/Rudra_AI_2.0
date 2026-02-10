@@ -37,7 +37,7 @@ function createWindow() {
 
   // Load the React app (served by webpack-dev-server or built index.html)
   if (process.env.NODE_ENV === "development") {
-    mainWindow.loadURL("http://localhost:3001");
+    mainWindow.loadURL("http://localhost:3003");
   } else {
     mainWindow.loadFile(path.join(__dirname, "../public/index.html"));
   }

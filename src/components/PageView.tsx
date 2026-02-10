@@ -59,7 +59,7 @@ const PageView: React.FC<PageViewProps> = ({ url, onTitleChange, onDomExtract, w
         width: "100%",
         height: "100%",
         border: "none",
-        background: "transparent",
+        background: "#ffffff",
         zIndex: 1,
         display: "flex",
         minHeight: 0,
@@ -68,7 +68,7 @@ const PageView: React.FC<PageViewProps> = ({ url, onTitleChange, onDomExtract, w
       }}
       allowpopups={true}
       webpreferences="contextIsolation, nativeWindowOpen, javascript=yes"
-      // onDidFinishLoad removed; handled in useEffect below
+    // onDidFinishLoad removed; handled in useEffect below
     />
   );
 };

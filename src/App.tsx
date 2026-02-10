@@ -9,11 +9,10 @@ import SummaryCard from "./components/SummaryCard";
 import {
   summarizePagePrompt,
   translatePagePrompt,
-  explainSelectedTextPrompt,
-  generateLinkedInPostPrompt
+  explainSelectedTextPrompt
 } from "./ai/prompts";
 import { callAI } from "./ai/aiAdapter";
-import { saveSummary, saveBookmark, getBookmarks } from "./utils/storage";
+import { saveSummary, saveBookmark, getBookmarks, saveHistoryEntry } from "./utils/storage";
 import { useSessionSelector, useSessionActions, useActiveTab } from "./state/session/store";
 
 import { getWebviewSelectedText } from "./utils/context";
@@ -32,7 +31,8 @@ const App: React.FC = () => {
     appendChatMessage,
     recordSuggestion,
     reorderTabs,
-    updateSettings
+    updateSettings,
+    closeAllTabs
   } = useSessionActions();
   const [bookmarkedUrls, setBookmarkedUrls] = useState<Record<string, boolean>>({});
   const [toolbarNotice, setToolbarNotice] = useState<{ message: string; kind: "success" | "error" } | null>(null);
@@ -142,6 +142,14 @@ const App: React.FC = () => {
       pageTitle: input || currentTab.pageTitle,
       pageText: ""
     });
+    // Save to browsing history (only actual URL navigations)
+    if (url && url !== "about:blank") {
+      saveHistoryEntry({
+        url,
+        title: input || url,
+        date: Date.now()
+      }).catch(err => console.warn("Failed to save history", err));
+    }
   };
 
   const handleTabSelect = (id: string) => {
@@ -334,8 +342,43 @@ const App: React.FC = () => {
   }, [currentTab, patchTab]);
 
   // AI sidebar action handler
+  // Handle AI chat from NewTabPage (Perplexity-style, no page context needed)
+  const handleNewTabAIChat = async (query: string) => {
+    if (!currentTab) return;
+    if (latestAiController.current) {
+      latestAiController.current.abort();
+      latestAiController.current = null;
+    }
+    appendChatMessage(currentTab.id, { role: "user", content: query });
+    setAiLoading(true);
+    const controller = new AbortController();
+    latestAiController.current = controller;
+    try {
+      const systemInstruction = "You are Rudra AI, created by Rajan Kumar Karn, founder of DocMateX (currently pursuing his Bachelors from IIT Patna). Provide a concise, helpful response (medium length). Expand only if explicitly asked for details. ";
+      const aiRes = await callAI({
+        prompt: systemInstruction + query,
+        max_tokens: 1024,
+        temperature: 0.7,
+        signal: controller.signal
+      });
+      if (controller.signal.aborted) return;
+      appendChatMessage(currentTab.id, { role: "ai", content: aiRes.text });
+    } catch (err: any) {
+      if (err?.name === "AbortError") return;
+      appendChatMessage(currentTab.id, {
+        role: "ai",
+        content: "AI error: " + (err?.message || "Unknown error")
+      });
+    } finally {
+      if (latestAiController.current === controller) {
+        latestAiController.current = null;
+      }
+    }
+    setAiLoading(false);
+  };
+
   const handleAIAction = async (
-    action: "summarize" | "translate" | "explain" | "linkedin" | "custom",
+    action: "summarize" | "translate" | "explain" | "custom",
     payload?: any
   ) => {
     // Set provider for AI call
@@ -353,7 +396,8 @@ const App: React.FC = () => {
     };
     if (action === "custom") {
       // Always include tab context in freeform chat
-      prompt = `Given the following page context:\nTitle: ${currentTab.pageTitle}\nURL: ${currentTab.url}\nText: ${currentTab.pageText?.slice(0, 2000) || ""}\n\nAnswer the user's question:\n${payload?.text || ""}`;
+      const identityPrompt = "You are Rudra AI, created by Rajan Kumar Karn (founder of DocMateX, IIT Patna).";
+      prompt = `${identityPrompt}\nGiven the following page context:\nTitle: ${currentTab.pageTitle}\nURL: ${currentTab.url}\nText: ${currentTab.pageText?.slice(0, 2000) || ""}\n\nAnswer the user's question:\n${payload?.text || ""}`;
       userMsg = payload?.text || "";
     } else {
       let workingText = currentTab.pageText;
@@ -381,9 +425,6 @@ const App: React.FC = () => {
         }
         prompt = explainSelectedTextPrompt(selectedText, currentTab.url, currentTab.pageTitle);
         userMsg = "Explain selected text";
-      } else if (action === "linkedin") {
-        prompt = generateLinkedInPostPrompt(workingText, currentTab.url, currentTab.pageTitle);
-        userMsg = "Generate LinkedIn post for this page";
       }
     }
 
@@ -544,6 +585,9 @@ const App: React.FC = () => {
                     if (!currentTab) return;
                     patchTab(currentTab.id, { addressInput: value });
                   }}
+                  onAIChat={handleNewTabAIChat}
+                  chatHistory={chatHistory}
+                  aiLoading={aiLoading}
                 />
               ) : (
                 <PageView
@@ -586,6 +630,11 @@ const App: React.FC = () => {
           settings={settings}
           onUpdate={updateSettings}
           onClose={() => setSettingsOpen(false)}
+          onHistoryNavigate={(url: string) => handleNavigate(url)}
+          onCloseAllTabs={closeAllTabs}
+          onCloseCurrentTab={() => {
+            if (currentTab) closeTab(currentTab.id);
+          }}
         />
       ) : null}
     </div>

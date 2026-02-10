@@ -7,7 +7,7 @@ import ReactMarkdown from "react-markdown";
  * - Handles user input and triggers AI actions.
  */
 interface SidebarChatProps {
-  onAction: (action: "summarize" | "translate" | "explain" | "linkedin" | "custom", payload?: any) => void;
+  onAction: (action: "summarize" | "translate" | "explain" | "custom", payload?: any) => void;
   chatHistory: { role: "user" | "ai"; content: string }[];
   loading?: boolean;
   provider: "openai" | "gemini";
@@ -25,9 +25,34 @@ const SparkIcon: React.FC = () => (
   </svg>
 );
 
+const CloseIcon: React.FC = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+);
+
+const SendIcon: React.FC = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+);
+
+const SummarizeIcon: React.FC = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+);
+
+const TranslateIcon: React.FC = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+);
+
+const ExplainIcon: React.FC = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+);
+
 const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loading, provider, onProviderChange, onClose }) => {
   // Chat input state
   const [input, setInput] = React.useState("");
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, loading]);
 
   const handleSend = () => {
     if (input.trim()) {
@@ -37,9 +62,7 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
   };
 
   return (
-    <div
-      className="sidebar-chat"
-    >
+    <div className="sidebar-chat">
       <div className="sidebar-header">
         <div className="sidebar-header__row">
           <span className="sidebar-header__icon">
@@ -55,7 +78,7 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
               aria-label="Close Assistant"
               className="sidebar-header__close"
             >
-              ×
+              <CloseIcon />
             </button>
           )}
         </div>
@@ -74,10 +97,15 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
           </label>
         </div>
         <div className="sidebar-actions">
-          <button onClick={() => onAction("summarize")}>Summarize page</button>
-          <button onClick={() => onAction("translate")}>Translate page</button>
-          <button onClick={() => onAction("explain")}>Explain selected</button>
-          <button onClick={() => onAction("linkedin")}>Generate LinkedIn post</button>
+          <button onClick={() => onAction("summarize")}>
+            <SummarizeIcon /> Summarize page
+          </button>
+          <button onClick={() => onAction("translate")}>
+            <TranslateIcon /> Translate page
+          </button>
+          <button onClick={() => onAction("explain")}>
+            <ExplainIcon /> Explain selected
+          </button>
         </div>
       </div>
       <div className="chat-history">
@@ -100,9 +128,15 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
         ))}
         {loading && (
           <div className="chat-msg ai loading">
-            AI is thinking…
+            <div className="ntp__chat-thinking" style={{ padding: 0 }}>
+              <span className="ntp__thinking-dot" />
+              <span className="ntp__thinking-dot" />
+              <span className="ntp__thinking-dot" />
+              <span className="ntp__thinking-label">Thinking...</span>
+            </div>
           </div>
         )}
+        <div ref={chatEndRef} />
       </div>
       <div className="chat-input">
         <input
@@ -118,9 +152,7 @@ const SidebarChat: React.FC<SidebarChatProps> = ({ onAction, chatHistory, loadin
           onClick={handleSend}
           aria-label="Send"
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
-            <path d="M3 2l12 7-12 7 3-7-3-7z" fill="currentColor" />
-          </svg>
+          <SendIcon />
         </button>
       </div>
     </div>

@@ -30,7 +30,9 @@ type SessionAction =
   | { type: "SESSION_UPDATE_SETTINGS"; payload: Partial<SessionSettings> }
   | { type: "TAB_GROUP_UPSERT"; payload: TabGroup }
   | { type: "TAB_GROUP_DELETE"; payload: { groupId: string } }
-  | { type: "TAB_GROUP_TOGGLE_COLLAPSE"; payload: { groupId: string } };
+  | { type: "TAB_GROUP_DELETE"; payload: { groupId: string } }
+  | { type: "TAB_GROUP_TOGGLE_COLLAPSE"; payload: { groupId: string } }
+  | { type: "TAB_CLOSE_ALL"; payload: { newTab: Tab } };
 
 const SessionStateContext = React.createContext<SessionState | undefined>(undefined);
 const SessionDispatchContext = React.createContext<React.Dispatch<SessionAction> | undefined>(undefined);
@@ -186,14 +188,14 @@ function sessionReducer(state: SessionState, action: SessionAction): SessionStat
         const nextHistory =
           patch.url && patch.url !== tab.url
             ? [
-                ...tab.history.slice(0, tab.historyIndex + 1),
-                {
-                  id: `${tab.id}-history-${Date.now()}`,
-                  url: patch.url,
-                  title: patch.title ?? patch.pageTitle ?? tab.title,
-                  timestamp: Date.now(),
-                },
-              ]
+              ...tab.history.slice(0, tab.historyIndex + 1),
+              {
+                id: `${tab.id}-history-${Date.now()}`,
+                url: patch.url,
+                title: patch.title ?? patch.pageTitle ?? tab.title,
+                timestamp: Date.now(),
+              },
+            ]
             : tab.history;
         const nextHistoryIndex = nextHistory === tab.history ? tab.historyIndex : nextHistory.length - 1;
         return {
@@ -392,6 +394,13 @@ function sessionReducer(state: SessionState, action: SessionAction): SessionStat
         },
       };
     }
+    case "TAB_CLOSE_ALL": {
+      return {
+        ...state,
+        tabs: [action.payload.newTab],
+        activeTabId: action.payload.newTab.id,
+      };
+    }
     default:
       return state;
   }
@@ -586,6 +595,13 @@ export function useSessionActions() {
     [dispatch]
   );
 
+  const closeAllTabs = React.useCallback(() => {
+    const id = generateTabId();
+    const newTab = createBlankTab(id);
+    newTab.active = true;
+    dispatch({ type: "TAB_CLOSE_ALL", payload: { newTab } });
+  }, [dispatch]);
+
   return {
     addTab,
     closeTab,
@@ -602,5 +618,6 @@ export function useSessionActions() {
     upsertGroup,
     deleteGroup,
     toggleGroupCollapse,
+    closeAllTabs,
   };
 }

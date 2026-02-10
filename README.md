@@ -1,138 +1,71 @@
-# Rudra AI 2.0
+# Rudra AI 2.0 Browser
 
-An advanced, Comet-like AI browser with a sidebar assistant. Built with Electron, React, and a modular AI integration layer.
+**Rudra AI 2.0** is a next-generation AI-powered web browser designed for productivity, research, and seamless browsing. Built with Electron and React, it integrates advanced LLMs (OpenAI, Gemini) directly into the browsing experience.
 
----
+## 🚀 Features
 
-## Features
+### 🧠 Integrated AI Assistant
+- **Context-Aware Sidebar**: Chat with an AI that understands the current webpage content.
+- **Smart Actions**: One-click **Summarize**, **Translate**, and **Explain** for any page.
+- **Model Switching**: Choose between **Advanced (OpenAI)** and **Best (Gemini)** models.
+- **Identity**: Proudly powered by Rudra AI, created by **Rajan Kumar Karn** (Founder of DocMateX, IIT Patna).
 
-- **Browser shell**: Embedded Chromium, address bar (URL or search), tab manager (MVP: single tab), page viewer.
-- **AI sidebar assistant**: Chat UI, action buttons (Summarize, Translate, Explain, LinkedIn post), context-aware.
-- **Hybrid search**: Navigate to URL or search via Google (MVP), AI-enhanced search (extensible).
-- **Context awareness**: Explain selected text, send page context to AI.
-- **AI integration**: Generic adapter for OpenAI, Gemini, etc. (`callAI(payload)`).
-- **Voice commands**: (Bonus, see hooks/useVoice.ts for extension)
-- **Local storage**: IndexedDB for AI summaries and bookmarks.
-- **Modern UX**: Dark mode, responsive, sidebar animation-ready.
-- **Security**: Private mode, disables cookies by default, context isolation.
-- **Developer friendly**: Modular code, TypeScript, minimal tests, easy to extend.
+### 🎨 Modern & Stylish UI
+- **Glassmorphism Design**: Sleek, dark-themed UI with ambient gradients.
+- **Colorful Suggestion Chips**: Professional, color-coded quick actions (Quantum, Market Insights, Tech, etc.) to jumpstart your research.
+- **Dynamic Icons**: High-quality SVG icons for a polished look.
+- **Adaptive Viewing**: Smart rendering ensuring web pages look correct (e.g., proper white backgrounds for transparent sites like LinkedIn).
 
----
+### ⚡ Performance & Privacy
+- **Secure Webview**: Isolated browsing context with `contextIsolation`.
+- **Local History**: Chat history and settings are stored locally on your device.
+- **Efficient Tokens**: AI responses are optimized for conciseness and relevance.
 
-## Getting Started
+## 🛠️ Tech Stack
+- **Framework**: Electron (Main Process), React (Renderer)
+- **Language**: TypeScript
+- **Styling**: CSS Modules, CSS Variables (Theming), Glassmorphism
+- **AI Integration**: OpenAI API, Google Gemini API
+- **State Management**: React Hooks & Local Storage
 
-### 1. Install dependencies
+## 📦 Installation
 
-```bash
-npm install
-```
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/Rudra_AI_2.0.git
+   cd Rudra_AI_2.0
+   ```
 
-### 2. Set your AI API key
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-Copy `.env.example` to `.env` and add your API keys:
+3. **Configure Environment**
+   - Create a `.env` file in the root directory.
+   - Add your API keys:
+     ```env
+     OPEN_AI_API_KEY=your_openai_key
+     GEMINI_API_KEY=your_gemini_key
+     AI_PROVIDER=gemini # or openai
+     AI_MODE=standard
+     ```
 
-For **OpenAI** (recommended for most users):
-```
-OPEN_AI_API_KEY=sk-...your OpenAI key...
-AI_API_KEY=sk-...your OpenAI key...
-AI_PROVIDER=openai
-```
+4. **Run Development Mode**
+   ```bash
+   npm run dev
+   ```
 
-For **Gemini** (Google):
-```
-AI_API_KEY=AIzaSy...your Gemini key...
-AI_PROVIDER=gemini
-```
+5. **Build for Production**
+   ```bash
+   npm run build
+   ```
 
-To enable switching between both in the UI, include both keys:
-```
-AI_API_KEY=AIzaSy...your Gemini key...
-OPEN_AI_API_KEY=sk-...your OpenAI key...
-AI_PROVIDER=openai
-```
+## 👨‍💻 Creator
 
-### 3. Run in development
-
-```bash
-npm run dev
-```
-
-- Electron main process runs with hot reload.
-- React renderer runs on http://localhost:3000.
-
-### 4. Build for production
-
-```bash
-npm run build
-```
-
-### 5. Package the app
-
-```bash
-npm run package
-```
-
-- Output in `dist/` for macOS, Windows, Linux.
-
-### 6. Run tests
-
-```bash
-npm test
-```
+**Rudra AI** was created by **Rajan Kumar Karn**.
+- **Role**: Founder of **DocMateX**
+- **Education**: Pursuing Bachelors at **IIT Patna**
 
 ---
-
-## Security & Privacy Checklist
-
-- [x] Context isolation enabled (Electron best practice)
-- [x] Node integration disabled in renderer
-- [x] Preload script exposes only whitelisted APIs
-- [x] No cookies sent by default (webview is sandboxed)
-- [x] API key is read from environment, not bundled
-- [x] No analytics or telemetry
-- [x] Local storage is private (IndexedDB)
-- [x] External links open in system browser
-
-**Recommended:**
-- Use a dedicated API key with least privileges.
-- Do not share your `.env` file.
-- Review Electron security docs: https://www.electronjs.org/docs/latest/tutorial/security
-
----
-
-## How to swap LLM providers
-
-- Set `AI_PROVIDER` in your `.env` to `openai` or `gemini`.
-- The adapter in `src/ai/aiAdapter.ts` is modular—add more providers as needed.
-
----
-
-## Extending the App
-
-- Add more actions to the sidebar by extending `SidebarChat` and prompt templates.
-- Add multi-tab support by updating `TabManager` and tab state.
-- Add voice command support in `src/hooks/useVoice.ts`.
-- Add more storage features in `src/utils/storage.ts`.
-
----
-
-## Design Decisions
-
-- **TypeScript** for type safety and maintainability.
-- **IndexedDB** for local storage (cross-platform, no native deps).
-- **Electron security**: context isolation, no node integration, secure preload.
-- **No paid UI libraries**: all UI is custom CSS.
-
----
-
-## Example Usage
-
-1. Open a public article in the address bar.
-2. Click "Summarize page" in the sidebar.
-3. The AI output appears in the chat, and the summary is saved locally.
-
----
-
-## License
-
-MIT
+*Empowering the web with intelligence.*

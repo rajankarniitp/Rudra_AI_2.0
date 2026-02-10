@@ -37,7 +37,7 @@ export async function callAI(payload: CallAIPayload): Promise<AIResponse> {
 
   const openaiKey = await window.electronAPI.getEnv("OPEN_AI_API_KEY");
   const geminiKey = await window.electronAPI.getEnv("GEMINI_API_KEY");
-  const geminiModel = (await window.electronAPI.getEnv("GEMINI_MODEL")) || "models/gemini-2.5-pro";
+  const geminiModel = (await window.electronAPI.getEnv("GEMINI_MODEL")) || "gemini-2.5-flash";
 
   if (provider === "openai") {
     if (!openaiKey) {
@@ -82,8 +82,10 @@ async function callOpenAI(payload: CallAIPayload, apiKey: string): Promise<AIRes
 
 // Gemini Pro API call (text-only)
 async function callGemini(payload: CallAIPayload, apiKey: string, model: string): Promise<AIResponse> {
-  // Gemini API endpoint (text-only)
-  const endpoint = `https://generativelanguage.googleapis.com/v1/${model}:generateContent?key=${apiKey}`;
+  // Gemini API endpoint (v1beta – confirmed working with gemini-2.5-flash)
+  // Strip 'models/' prefix if present so we don't double it
+  const cleanModel = model.startsWith("models/") ? model.slice(7) : model;
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
   try {
     const res = await fetch(endpoint, {
       method: "POST",
