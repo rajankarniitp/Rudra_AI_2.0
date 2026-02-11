@@ -12,6 +12,7 @@ import {
   explainSelectedTextPrompt
 } from "./ai/prompts";
 import { callAI } from "./ai/aiAdapter";
+import { runRAGPipeline } from "./ai/ragPipeline";
 import { saveSummary, saveBookmark, getBookmarks, saveHistoryEntry } from "./utils/storage";
 import { useSessionSelector, useSessionActions, useActiveTab } from "./state/session/store";
 
@@ -342,7 +343,7 @@ const App: React.FC = () => {
   }, [currentTab, patchTab]);
 
   // AI sidebar action handler
-  // Handle AI chat from NewTabPage (Perplexity-style, no page context needed)
+  // Handle AI chat from NewTabPage (Perplexity-style with RAG)
   const handleNewTabAIChat = async (query: string) => {
     if (!currentTab) return;
     if (latestAiController.current) {
@@ -354,15 +355,23 @@ const App: React.FC = () => {
     const controller = new AbortController();
     latestAiController.current = controller;
     try {
-      const systemInstruction = "You are Rudra AI, created by Rajan Kumar Karn, founder of DocMateX (currently pursuing his Bachelors from IIT Patna). Provide a concise, helpful response (medium length). Expand only if explicitly asked for details. ";
-      const aiRes = await callAI({
-        prompt: systemInstruction + query,
-        max_tokens: 1024,
-        temperature: 0.7,
-        signal: controller.signal
-      });
+      const ragRes = await runRAGPipeline(query, controller.signal);
       if (controller.signal.aborted) return;
-      appendChatMessage(currentTab.id, { role: "ai", content: aiRes.text });
+      // Build a plain-text fallback from sections
+      const plainText = ragRes.raw_text || ragRes.answer_sections.map(s =>
+        (s.heading ? `## ${s.heading}\n` : "") + s.content
+      ).join("\n\n");
+      appendChatMessage(currentTab.id, {
+        role: "ai",
+        content: plainText,
+        ragData: {
+          title: ragRes.title,
+          answer_sections: ragRes.answer_sections,
+          images: ragRes.images,
+          citations: ragRes.citations,
+          summary_points: ragRes.summary_points
+        }
+      });
     } catch (err: any) {
       if (err?.name === "AbortError") return;
       appendChatMessage(currentTab.id, {
@@ -396,7 +405,7 @@ const App: React.FC = () => {
     };
     if (action === "custom") {
       // Always include tab context in freeform chat
-      const identityPrompt = "You are Rudra AI, created by Rajan Kumar Karn (founder of DocMateX, IIT Patna).";
+      const identityPrompt = "You are Rudra AI, created by Rajan Kumar Karn (founder of DocMateX, IIT Patna). To show an image, use this format: ![Visual Name](image:SearchQuery-No-Spaces). Example: ![Super Computer](image:super-computer).";
       prompt = `${identityPrompt}\nGiven the following page context:\nTitle: ${currentTab.pageTitle}\nURL: ${currentTab.url}\nText: ${currentTab.pageText?.slice(0, 2000) || ""}\n\nAnswer the user's question:\n${payload?.text || ""}`;
       userMsg = payload?.text || "";
     } else {

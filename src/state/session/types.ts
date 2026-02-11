@@ -4,6 +4,13 @@ export interface ChatMessage {
   role: "user" | "ai";
   content: string;
   createdAt: number;
+  ragData?: {
+    title: string;
+    answer_sections: { heading: string; content: string }[];
+    images: { source_id: number; image_url: string; caption: string; placement_hint: string }[];
+    citations: { id: number; title: string; url: string; favicon: string }[];
+    summary_points: string[];
+  };
 }
 
 export interface TabHistoryEntry {

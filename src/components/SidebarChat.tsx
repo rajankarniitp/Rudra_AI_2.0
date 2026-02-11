@@ -185,6 +185,10 @@ const AIResponseWithRelated: React.FC<{ content: string }> = ({ content }) => {
   return (
     <div>
       <ReactMarkdown
+        urlTransform={(url) => {
+          if (url.startsWith("image:") || url.startsWith("https:")) return url;
+          return url;
+        }}
         components={{
           h1: ({ node, ...props }) => <h1 style={{ fontSize: 20, margin: "12px 0 8px 0", color: "var(--accent)" }} {...props} />,
           h2: ({ node, ...props }) => <h2 style={{ fontSize: 17, margin: "10px 0 6px 0", color: "var(--accent)" }} {...props} />,
@@ -194,7 +198,30 @@ const AIResponseWithRelated: React.FC<{ content: string }> = ({ content }) => {
           li: ({ node, ...props }) => <li style={{ marginBottom: 4 }} {...props} />,
           code: ({ node, ...props }) => <code style={{ background: "rgba(12,22,34,0.85)", padding: "2px 6px", borderRadius: 6, fontSize: 13 }} {...props} />,
           pre: ({ node, ...props }) => <pre style={{ background: "rgba(12,22,34,0.9)", padding: 12, borderRadius: 8, fontSize: 13, overflowX: "auto" }} {...props} />,
-          a: ({ node, ...props }) => <a style={{ color: "var(--accent)" }} target="_blank" rel="noopener noreferrer" {...props} />
+          a: ({ node, ...props }) => <a style={{ color: "var(--accent)" }} target="_blank" rel="noopener noreferrer" {...props} />,
+          img: ({ node, ...props }) => {
+            let src = props.src || "";
+            if (src.startsWith("image:")) {
+              const query = src.replace("image:", "");
+              src = `https://image.pollinations.ai/prompt/${encodeURIComponent(query)}`;
+            }
+            return (
+              <img
+                {...props}
+                src={src}
+                style={{
+                  maxWidth: "100%",
+                  borderRadius: 12,
+                  marginTop: 12,
+                  marginBottom: 12,
+                  display: "block",
+                  border: "1px solid rgba(255, 255, 255, 0.1)",
+                  boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)"
+                }}
+                loading="lazy"
+              />
+            );
+          }
         }}
       >
         {mainContent}

@@ -1,5 +1,6 @@
 import React from "react";
 import ReactMarkdown from "react-markdown";
+import { useSessionActions } from "../state/session/store";
 
 /**
  * NewTabPage – Perplexity/Comet-style AI chatbot interface.
@@ -11,7 +12,17 @@ interface NewTabPageProps {
   variant?: "hero" | "compact";
   suggestions?: string[];
   onAIChat?: (query: string) => void;
-  chatHistory?: { role: "user" | "ai"; content: string }[];
+  chatHistory?: {
+    role: "user" | "ai";
+    content: string;
+    ragData?: {
+      title: string;
+      answer_sections: { heading: string; content: string }[];
+      images: { source_id: number; image_url: string; caption: string; placement_hint: string }[];
+      citations: { id: number; title: string; url: string; favicon: string }[];
+      summary_points: string[];
+    };
+  }[];
   aiLoading?: boolean;
 }
 
@@ -118,8 +129,18 @@ const NewTabPage: React.FC<NewTabPageProps> = ({
   aiLoading = false,
 }) => {
   const [input, setInput] = React.useState("");
+  const [expandedImage, setExpandedImage] = React.useState<string | null>(null);
   const chatEndRef = React.useRef<HTMLDivElement>(null);
   const hasChatContent = chatHistory.length > 0 || aiLoading;
+
+  const { addTab } = useSessionActions();
+
+  // Helper to open link in new internal tab
+  const handleOpenLink = (e: React.MouseEvent, url?: string) => {
+    if (!url) return;
+    e.preventDefault();
+    addTab({ url });
+  };
 
   React.useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -161,8 +182,7 @@ const NewTabPage: React.FC<NewTabPageProps> = ({
           <div className="ntp__brand">
             <RudraLogo size={52} />
             <div className="ntp__brand-info">
-              <span className="ntp__brand-text">Rudra AI</span>
-              <span className="ntp__brand-version">v2.0</span>
+              <span className="ntp__brand-text">Rudra AI 2.0</span>
             </div>
           </div>
           <h1 className="ntp__headline">
@@ -190,11 +210,11 @@ const NewTabPage: React.FC<NewTabPageProps> = ({
             </button>
           </form>
 
-          <div className="ntp__chips">
+          <div className="ntp__tiles">
             {quickLinks.map(link => (
-              <button type="button" key={link.label} className="ntp__chip" onClick={() => handleChipClick(link.query)}>
-                <span className="ntp__chip-icon"><ChipIcon icon={link.icon} /></span>
-                <span>{link.label}</span>
+              <button type="button" key={link.label} className="ntp__tile" onClick={() => handleChipClick(link.query)}>
+                <div className="ntp__tile-icon"><ChipIcon icon={link.icon} /></div>
+                <span className="ntp__tile-label">{link.label}</span>
               </button>
             ))}
           </div>
@@ -226,9 +246,108 @@ const NewTabPage: React.FC<NewTabPageProps> = ({
               </div>
               <div className="ntp__chat-content">
                 <div className="ntp__chat-sender">{msg.role === "user" ? "You" : "Rudra AI"}</div>
-                {msg.role === "ai" ? (
+                {msg.role === "ai" && msg.ragData && msg.ragData.answer_sections.length > 0 ? (
+                  <div className="rag-response">
+                    {/* ── RAG Title ── */}
+                    {msg.ragData.title && msg.ragData.title !== "Research Results" && msg.ragData.title !== "AI Response" && (
+                      <h2 className="rag-response__title">{msg.ragData.title}</h2>
+                    )}
+                    {/* ── Sources pill bar ── */}
+                    {msg.ragData.citations.length > 0 && (
+                      <div className="rag-sources-bar">
+                        <span className="rag-sources-bar__label">Sources</span>
+                        <div className="rag-sources-bar__pills">
+                          {msg.ragData.citations.map((c) => (
+                            <a
+                              key={c.id}
+                              href={c.url}
+                              onClick={(e) => handleOpenLink(e, c.url)}
+                              className="rag-source-pill"
+                              title={c.title}
+                            >
+                              <img src={c.favicon} alt="" className="rag-source-pill__favicon" />
+                              <span className="rag-source-pill__num">{c.id}</span>
+                              <span className="rag-source-pill__title">{c.title.length > 28 ? c.title.slice(0, 28) + "…" : c.title}</span>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {/* ── Answer Sections + Images ── */}
+                    {msg.ragData.answer_sections.map((section, sIdx) => {
+                      // Find images that go after this section
+                      const sectionImages = (msg.ragData?.images || []).filter(
+                        (img) => img.placement_hint === `after_section_${sIdx}`
+                      );
+                      return (
+                        <div key={sIdx} className="rag-section">
+                          {section.heading && (
+                            <h3 className="rag-section__heading">{section.heading}</h3>
+                          )}
+                          <div className="rag-section__content">
+                            <ReactMarkdown
+                              urlTransform={(url) => url}
+                              components={{
+                                h1: ({ node, ...props }) => <h1 style={{ fontSize: 20, margin: "12px 0 8px 0", color: "var(--accent)" }} {...props} />,
+                                h2: ({ node, ...props }) => <h2 style={{ fontSize: 17, margin: "10px 0 6px 0", color: "var(--accent)" }} {...props} />,
+                                h3: ({ node, ...props }) => <h3 style={{ fontSize: 15, margin: "8px 0 4px 0", color: "var(--accent)" }} {...props} />,
+                                ul: ({ node, ...props }) => <ul style={{ margin: "8px 0 8px 18px" }} {...props} />,
+                                ol: ({ node, ...props }) => <ol style={{ margin: "8px 0 8px 18px" }} {...props} />,
+                                li: ({ node, ...props }) => <li style={{ marginBottom: 4 }} {...props} />,
+                                code: ({ node, ...props }) => <code style={{ background: "rgba(12,22,34,0.85)", padding: "2px 6px", borderRadius: 6, fontSize: 13 }} {...props} />,
+                                pre: ({ node, ...props }) => <pre style={{ background: "rgba(12,22,34,0.9)", padding: 12, borderRadius: 8, fontSize: 13, overflowX: "auto" }} {...props} />,
+                                a: ({ node, ...props }) => (
+                                  <a
+                                    style={{ color: "var(--accent)", cursor: "pointer" }}
+                                    onClick={(e) => handleOpenLink(e, props.href)}
+                                    // kept for hover preview
+                                    href={props.href}
+                                    {...props}
+                                  />
+                                ),
+                              }}
+                            >{section.content}</ReactMarkdown>
+                          </div>
+                          {/* Images placed after this section */}
+                          {sectionImages.length > 0 && (
+                            <div className="rag-images">
+                              {sectionImages.map((img, imgIdx) => (
+                                <div key={imgIdx} className="rag-image-card" onClick={() => setExpandedImage(img.image_url)}>
+                                  <img
+                                    src={img.image_url}
+                                    alt={img.caption || ""}
+                                    className="rag-image-card__img"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      const card = (e.currentTarget as HTMLElement).closest(".rag-image-card") as HTMLElement;
+                                      if (card) card.style.display = "none";
+                                    }}
+                                  />
+                                  <span className="rag-image-card__badge">[{img.source_id}]</span>
+                                  {img.caption && <span className="rag-image-card__caption">{img.caption}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {/* ── Summary Points ── */}
+                    {msg.ragData.summary_points.length > 0 && (
+                      <div className="rag-summary">
+                        <h4 className="rag-summary__title">Key Insights</h4>
+                        <ul className="rag-summary__list">
+                          {msg.ragData.summary_points.map((pt, pIdx) => (
+                            <li key={pIdx} className="rag-summary__item">{pt}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ) : msg.role === "ai" ? (
                   <div className="ntp__chat-markdown">
                     <ReactMarkdown
+                      urlTransform={(url) => url}
                       components={{
                         h1: ({ node, ...props }) => <h1 style={{ fontSize: 20, margin: "12px 0 8px 0", color: "var(--accent)" }} {...props} />,
                         h2: ({ node, ...props }) => <h2 style={{ fontSize: 17, margin: "10px 0 6px 0", color: "var(--accent)" }} {...props} />,
@@ -238,7 +357,30 @@ const NewTabPage: React.FC<NewTabPageProps> = ({
                         li: ({ node, ...props }) => <li style={{ marginBottom: 4 }} {...props} />,
                         code: ({ node, ...props }) => <code style={{ background: "rgba(12,22,34,0.85)", padding: "2px 6px", borderRadius: 6, fontSize: 13 }} {...props} />,
                         pre: ({ node, ...props }) => <pre style={{ background: "rgba(12,22,34,0.9)", padding: 12, borderRadius: 8, fontSize: 13, overflowX: "auto" }} {...props} />,
-                        a: ({ node, ...props }) => <a style={{ color: "var(--accent)" }} target="_blank" rel="noopener noreferrer" {...props} />
+                        a: ({ node, ...props }) => <a style={{ color: "var(--accent)" }} target="_blank" rel="noopener noreferrer" {...props} />,
+                        img: ({ node, ...props }) => {
+                          let src = props.src || "";
+                          if (src.startsWith("image:")) {
+                            const query = src.replace("image:", "");
+                            src = `https://image.pollinations.ai/prompt/${encodeURIComponent(query)}`;
+                          }
+                          return (
+                            <img
+                              {...props}
+                              src={src}
+                              style={{
+                                maxWidth: "100%",
+                                borderRadius: 12,
+                                marginTop: 12,
+                                marginBottom: 12,
+                                display: "block",
+                                border: "1px solid rgba(255, 255, 255, 0.1)",
+                                boxShadow: "0 8px 24px rgba(0, 0, 0, 0.2)"
+                              }}
+                              loading="lazy"
+                            />
+                          );
+                        }
                       }}
                     >{msg.content}</ReactMarkdown>
                   </div>
@@ -286,6 +428,15 @@ const NewTabPage: React.FC<NewTabPageProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ── Image Expand Modal ── */}
+      {expandedImage && (
+        <div className="rag-image-modal" onClick={() => setExpandedImage(null)}>
+          <div className="rag-image-modal__backdrop" />
+          <img src={expandedImage} alt="Expanded view" className="rag-image-modal__img" />
+          <button className="rag-image-modal__close" onClick={() => setExpandedImage(null)}>✕</button>
+        </div>
+      )}
 
     </div>
   );

@@ -46,6 +46,23 @@ const reorderIds = (ids: string[], draggedId: string, targetId: string | null, b
   return filtered;
 };
 
+const RudraTabIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <circle cx="8" cy="8" r="4" fill="var(--accent)" />
+    <circle cx="8" cy="8" r="7.5" stroke="var(--accent)" strokeOpacity="0.3" />
+  </svg>
+);
+
+const getFavicon = (url: string) => {
+  try {
+    if (!url || url === "about:blank" || url.startsWith("rudra://")) return null;
+    const hostname = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+  } catch {
+    return null;
+  }
+};
+
 const TabManager: React.FC<TabManagerProps> = ({
   tabs,
   onTabSelect,
@@ -53,6 +70,7 @@ const TabManager: React.FC<TabManagerProps> = ({
   onTabAdd,
   onTabPinToggle,
   onTabReorder,
+  // ... existing props usage
 }) => {
   const draggedIdRef = React.useRef<string | null>(null);
   const pinnedTabs = React.useMemo(() => tabs.filter(tab => tab.status === "pinned"), [tabs]);
@@ -60,6 +78,10 @@ const TabManager: React.FC<TabManagerProps> = ({
   const pinnedIds = React.useMemo(() => pinnedTabs.map(tab => tab.id), [pinnedTabs]);
   const regularIds = React.useMemo(() => regularTabs.map(tab => tab.id), [regularTabs]);
   const totalTabs = tabs.length;
+
+  // Dynamic Sizing Logic
+  const isCompact = regularTabs.length > 7;
+  const isMini = regularTabs.length > 14; // Icon only mode
 
   const commitReorder = React.useCallback(
     (nextPinned: string[], nextRegular: string[]) => {
@@ -134,58 +156,62 @@ const TabManager: React.FC<TabManagerProps> = ({
 
   const renderTab = (tab: TabSummary, section: "pinned" | "regular") => {
     const pinned = tab.status === "pinned";
+    const favUrl = getFavicon(tab.url);
+    const active = tab.active;
+
+    // In mini mode, we show title on hover via title attribute if needed, OR we rely on tooltip (native)
+
     return (
       <button
         key={tab.id}
         type="button"
-        className={`tab-chip ${tab.active ? "is-active" : ""} ${pinned ? "is-pinned" : ""}`}
+        className={`tab-chip ${active ? "is-active" : ""} ${pinned ? "is-pinned" : ""} ${isCompact ? "is-compact" : ""} ${isMini ? "is-mini" : ""}`}
         onClick={() => onTabSelect(tab.id)}
         draggable
         onDragStart={event => handleDragStart(event, tab.id)}
         onDragEnd={handleDragEnd}
         onDragOver={handleDragOver}
         onDrop={event => handleDropOnTab(event, section, tab.id)}
+        title={tab.title || "New Tab"}
       >
-        <span className="tab-chip__indicator" aria-hidden="true" />
-        <span className="tab-chip__label">{tab.title || tab.url || "New tab"}</span>
-        {onTabPinToggle ? (
+        {/* Render Favicon or Rudra Icon */}
+        <div className="tab-chip__icon-wrapper">
+          {favUrl ? (
+            <img src={favUrl} alt="" className="tab-chip__favicon" onError={(e) => (e.currentTarget.style.display = "none")} />
+          ) : (
+            <RudraTabIcon />
+          )}
+        </div>
+
+        {/* Render Title if not mini mode (or if pinned/active logic overrides - but user asked for shrinking globally) */}
+        {!isMini && !pinned && (
+          <span className="tab-chip__label">{tab.title || "New tab"}</span>
+        )}
+
+        {/* Render Pin/Close only if space permits or on hover */}
+        {!isMini && onTabPinToggle && (
           <span
             className={`tab-chip__pin ${pinned ? "is-active" : ""}`}
             role="button"
-            aria-label={pinned ? "Unpin tab" : "Pin tab"}
-            aria-pressed={pinned}
-            tabIndex={0}
             onClick={event => {
               event.stopPropagation();
               onTabPinToggle(tab.id, !pinned);
             }}
-            onKeyDown={event => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                event.stopPropagation();
-                onTabPinToggle(tab.id, !pinned);
-              }
-            }}
           >
             <PinIcon filled={pinned} />
           </span>
-        ) : null}
-        {onTabClose && totalTabs > 1 && (
+        )}
+
+        {/* Close Button: Hide on Mini unless hovered? We'll rely on CSS for hover visibility, 
+            but in Mini mode might be hard. Let's keep it simple: Mini = just icon. Close active tab via sidebar or command? 
+            Or maybe show close button on hover even in mini mode? CSS can handle that. */}
+        {onTabClose && totalTabs > 1 && !isMini && (
           <span
             className="tab-chip__close"
             role="button"
-            aria-label="Close tab"
-            tabIndex={0}
             onClick={event => {
               event.stopPropagation();
               onTabClose(tab.id);
-            }}
-            onKeyDown={event => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                event.stopPropagation();
-                onTabClose(tab.id);
-              }
             }}
           >
             ×
@@ -217,9 +243,9 @@ const TabManager: React.FC<TabManagerProps> = ({
             className="tab-chip tab-chip--ghost"
             onClick={onTabAdd}
             aria-label="Open a new tab"
+            title="New Tab"
           >
             <span className="tab-chip__indicator" aria-hidden="true" />
-            <span className="tab-chip__label">New tab</span>
           </button>
         </div>
       </div>
